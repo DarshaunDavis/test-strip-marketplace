@@ -1,15 +1,76 @@
+# ───────────────────────────────────────────────
+# Android Studio / IntelliJ IDEA
+# ───────────────────────────────────────────────
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
+.idea/
+*.iws
+*.ipr
+
+# Exclude IntelliJ workspace/config files
+/.idea/caches/
+/.idea/libraries/
 /.idea/modules.xml
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+vcs.xml
+modules.xml
+misc.xml
+
+# ───────────────────────────────────────────────
+# Gradle
+# ───────────────────────────────────────────────
+.gradle/
+/build/
+/**/build/
+.cxx/
+.cxx/Debug/
+/captures/
+/externalNativeBuild/
+
+# Keep the Gradle wrapper files
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+!/gradlew
+!/gradlew.bat
+
+# ───────────────────────────────────────────────
+# Local config
+# ───────────────────────────────────────────────
 local.properties
+**/local.properties
+
+# ───────────────────────────────────────────────
+# NDK / CMake
+# ───────────────────────────────────────────────
+.obj/
+/jniLibs/
+
+# ───────────────────────────────────────────────
+# Google services & signing
+# ───────────────────────────────────────────────
+/app/google-services.json
+*.jks
+*.keystore
+
+# ───────────────────────────────────────────────
+# Crashlytics & Analytics (Optional, but common)
+# ───────────────────────────────────────────────
+/app/crashlytics-build.properties
+
+# ───────────────────────────────────────────────
+# Kotlin Compiler Cache
+# ───────────────────────────────────────────────
+.kotlinc/
+
+# ───────────────────────────────────────────────
+# OS / Editor Files
+# ───────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
+
+# ───────────────────────────────────────────────
+# Ensure resource XML stays versioned
+# ───────────────────────────────────────────────
+!app/src/**/*.xml
