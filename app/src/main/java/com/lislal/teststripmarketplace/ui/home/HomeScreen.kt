@@ -1,7 +1,5 @@
 package com.lislal.teststripmarketplace.ui.home
 
-import android.util.Patterns
-import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBox
@@ -11,13 +9,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.google.firebase.auth.FirebaseAuth
 import com.lislal.teststripmarketplace.R
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,17 +25,12 @@ fun HomeScreen(
     onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    var showPasswordResetSnackbar by remember { mutableStateOf(false) }
 
     var showLoginDialog by remember { mutableStateOf(false) }
     var showRegisterDialog by remember { mutableStateOf(false) }
     var showForgotPasswordDialog by remember { mutableStateOf(false) }
-
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var forgotEmail by remember { mutableStateOf("") }
+    var showPasswordResetSnackbar by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -112,135 +102,42 @@ fun HomeScreen(
         }
     }
 
-    // 🔐 Login Dialog
     if (showLoginDialog) {
-        AlertDialog(
-            onDismissRequest = { showLoginDialog = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (email.isBlank() || password.isBlank()) {
-                            Toast.makeText(context, "Email and password cannot be empty", Toast.LENGTH_SHORT).show()
-                        } else {
-                            onLogin(email.trim(), password)
-                            showLoginDialog = false
-                            email = ""
-                            password = ""
-                        }
-                    }
-                ) {
-                    Text("Login")
-                }
+        LoginDialog(
+            onDismiss = { showLoginDialog = false },
+            onLogin = onLogin,
+            onForgotPasswordClick = {
+                showLoginDialog = false
+                showForgotPasswordDialog = true
             },
-            dismissButton = {
-                TextButton(onClick = { showLoginDialog = false }) {
-                    Text("Cancel")
-                }
-            },
-            title = { Text("Log In") },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = { email = it },
-                        label = { Text("Email") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = { Text("Password") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TextButton(onClick = {
-                            showLoginDialog = false
-                            showForgotPasswordDialog = true
-                        }) {
-                            Text("Forgot Password?")
-                        }
-
-                        TextButton(onClick = {
-                            showLoginDialog = false
-                            showRegisterDialog = true
-                        }) {
-                            Text("Register")
-                        }
-                    }
-                }
+            onRegisterClick = {
+                showLoginDialog = false
+                showRegisterDialog = true
             }
         )
     }
 
-    // ✅ Password Reset Snackbar
+    if (showRegisterDialog) {
+        RegisterDialog(
+            onDismiss = { showRegisterDialog = false }
+        )
+    }
+
+    if (showForgotPasswordDialog) {
+        ForgotPasswordDialog(
+            onDismiss = { showForgotPasswordDialog = false },
+            onResetSent = {
+                showForgotPasswordDialog = false
+                showPasswordResetSnackbar = true
+            }
+        )
+    }
+
     if (showPasswordResetSnackbar) {
         LaunchedEffect(Unit) {
             snackbarHostState.showSnackbar("Password reset email sent.")
             showPasswordResetSnackbar = false
         }
-    }
-
-    // ✅ Forgot Password Dialog
-    if (showForgotPasswordDialog) {
-        AlertDialog(
-            onDismissRequest = { showForgotPasswordDialog = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (forgotEmail.isBlank() || !Patterns.EMAIL_ADDRESS.matcher(forgotEmail).matches()) {
-                        Toast.makeText(context, "Enter a valid email", Toast.LENGTH_SHORT).show()
-                    } else {
-                        FirebaseAuth.getInstance().sendPasswordResetEmail(forgotEmail.trim())
-                            .addOnSuccessListener {
-                                showForgotPasswordDialog = false
-                                forgotEmail = ""
-                                showPasswordResetSnackbar = true
-                            }
-                            .addOnFailureListener {
-                                Toast.makeText(context, "Failed to send reset email", Toast.LENGTH_SHORT).show()
-                            }
-                    }
-                }) {
-                    Text("Send Reset Email")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showForgotPasswordDialog = false }) {
-                    Text("Cancel")
-                }
-            },
-            title = { Text("Reset Password") },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = forgotEmail,
-                        onValueChange = { forgotEmail = it },
-                        label = { Text("Email") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        )
-    }
-
-    // 🆕 Register Dialog Placeholder
-    if (showRegisterDialog) {
-        AlertDialog(
-            onDismissRequest = { showRegisterDialog = false },
-            confirmButton = {
-                TextButton(onClick = { showRegisterDialog = false }) {
-                    Text("OK")
-                }
-            },
-            title = { Text("Register") },
-            text = { Text("Registration dialog coming soon.") }
-        )
     }
 }
 
