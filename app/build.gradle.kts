@@ -59,6 +59,7 @@ dependencies {
     implementation(libs.firebase.database)
     implementation(libs.firebase.crashlytics)
     implementation(libs.play.services.ads)
+    implementation(libs.lifecycle.viewmodel.compose)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
