@@ -1,5 +1,6 @@
 package com.lislal.teststripmarketplace.ui.home
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBox
@@ -9,7 +10,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -20,9 +23,17 @@ import com.lislal.teststripmarketplace.R
 fun HomeScreen(
     username: String?,
     isLoggedIn: Boolean,
-    onLoginLogoutClick: () -> Unit,
+    userRole: String,
+    onLogin: (email: String, password: String) -> Unit,
+    onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+
+    var showLoginDialog by remember { mutableStateOf(false) }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -33,18 +44,21 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (isLoggedIn) "Hello, $username" else "",
+                            text = if (isLoggedIn) "Hello, $username" else "Hello, Guest",
                             modifier = Modifier.weight(1f)
                         )
                         Icon(
                             painter = painterResource(R.drawable.test_strip_logo),
                             contentDescription = "App Logo",
                             modifier = Modifier
-                                .size(1000.dp)
+                                .size(40.dp)
                                 .weight(1f)
                         )
                         TextButton(
-                            onClick = onLoginLogoutClick,
+                            onClick = {
+                                if (isLoggedIn) onLogout()
+                                else showLoginDialog = true
+                            },
                             modifier = Modifier.weight(1f),
                         ) {
                             Text(if (isLoggedIn) "Logout" else "Login")
@@ -67,12 +81,12 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            // Filters and Sorts Placeholder
-            Text("FILTERS + SORT OPTIONS", style = MaterialTheme.typography.titleMedium)
-
+            Text("Role: $userRole", style = MaterialTheme.typography.labelMedium)
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Ad Feed Placeholder
+            Text("FILTERS + SORT OPTIONS", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(16.dp))
+
             repeat(5) {
                 Card(
                     modifier = Modifier
@@ -88,6 +102,53 @@ fun HomeScreen(
             }
         }
     }
+
+    // 🔐 Login Dialog
+    if (showLoginDialog) {
+        AlertDialog(
+            onDismissRequest = { showLoginDialog = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (email.isBlank() || password.isBlank()) {
+                            Toast.makeText(context, "Email and password cannot be empty", Toast.LENGTH_SHORT).show()
+                        } else {
+                            onLogin(email.trim(), password)
+                            showLoginDialog = false
+                            email = ""
+                            password = ""
+                        }
+                    }
+                ) {
+                    Text("Login")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLoginDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+            title = { Text("Log In") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("Email") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Password") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        )
+    }
 }
 
 @Preview(showBackground = true, showSystemUi = true)
@@ -96,6 +157,8 @@ fun HomeScreenPreview() {
     HomeScreen(
         username = "Darshaun",
         isLoggedIn = true,
-        onLoginLogoutClick = {}
+        userRole = "buyer",
+        onLogin = { _, _ -> },
+        onLogout = {}
     )
 }
