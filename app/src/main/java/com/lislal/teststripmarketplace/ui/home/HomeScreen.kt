@@ -35,7 +35,7 @@ fun HomeScreen(
     var showForgotPasswordDialog by remember { mutableStateOf(false) }
     var showPasswordResetSnackbar by remember { mutableStateOf(false) }
 
-    // ➊ Build tab list based on role
+    // Build tab list dynamically
     data class Tab(val title: String, val icon: ImageVector)
     val tabs by remember(userRole) {
         mutableStateOf(
@@ -66,97 +66,68 @@ fun HomeScreen(
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { innerPadding ->
-        Box(
+        Column(
             modifier = modifier
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-            when (tabs[selectedIndex].title) {
-                "Home" -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp)
-                    ) {
-                        // ─── HEADER ─────────────────────────────────
-                        val hour = java.util.Calendar.getInstance()
-                            .get(java.util.Calendar.HOUR_OF_DAY)
-                        val greetingPrefix = when (hour) {
-                            in 0..11 -> "Good morning"
-                            in 12..16 -> "Good afternoon"
-                            else -> "Good evening"
-                        }
+            // ─── Persistent Header ───────────────────────────
+            val hour = java.util.Calendar.getInstance()
+                .get(java.util.Calendar.HOUR_OF_DAY)
+            val greetingPrefix = when (hour) {
+                in 0..11 -> "Good morning"
+                in 12..16 -> "Good afternoon"
+                else -> "Good evening"
+            }
 
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 16.dp, bottom = 8.dp)
-                        ) {
-                            Column(modifier = Modifier.align(Alignment.CenterStart)) {
-                                Text(greetingPrefix, style = MaterialTheme.typography.labelLarge)
-                                Text(
-                                    text = if (isLoggedIn && !username.isNullOrBlank()) username else "Guest",
-                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
-                                )
-                            }
-                            Icon(
-                                painter = painterResource(R.drawable.test_strip_logo),
-                                contentDescription = "App Logo",
-                                modifier = Modifier
-                                    .align(Alignment.Center)
-                                    .size(150.dp)
-                            )
-                            TextButton(
-                                onClick = {
-                                    if (isLoggedIn) onLogout() else showLoginDialog = true
-                                },
-                                modifier = Modifier.align(Alignment.CenterEnd)
-                            ) {
-                                Text(if (isLoggedIn) "Logout" else "Login")
-                            }
-                        }
-                        // ─────────────────────────────────────────────
-
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("Role: $userRole", style = MaterialTheme.typography.labelMedium)
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Text("FILTERS + SORT OPTIONS", style = MaterialTheme.typography.titleMedium)
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        OutlinedTextField(
-                            value = "",
-                            onValueChange = {},
-                            placeholder = { Text("Search buyers…") },
-                            enabled = false,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-                        repeat(5) {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
-                                    .clickable { }
-                            ) {
-                                Text(
-                                    text = "Buyer Ad #${it + 1}",
-                                    modifier = Modifier.padding(16.dp),
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                    }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                Column(Modifier.align(Alignment.CenterStart)) {
+                    Text(greetingPrefix, style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        text = if (isLoggedIn && !username.isNullOrBlank()) username else "Guest",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                    )
                 }
-                "Scan" -> ScanPlaceholder()
-                "Admin" -> AdminScreen()
-                "Account" -> AccountPlaceholder()
+                Icon(
+                    painter = painterResource(R.drawable.test_strip_logo),
+                    contentDescription = "App Logo",
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(100.dp)
+                )
+                TextButton(
+                    onClick = {
+                        if (isLoggedIn) onLogout()
+                        else showLoginDialog = true
+                    },
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                ) {
+                    Text(if (isLoggedIn) "Logout" else "Login")
+                }
+            }
+            HorizontalDivider()
+
+            // ─── Tab Content ─────────────────────────────────
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                when (tabs[selectedIndex].title) {
+                    "Home" -> HomeFeed(userRole)
+                    "Scan" -> ScanPlaceholder()
+                    "Admin" -> AdminScreen()
+                    "Account" -> AccountPlaceholder()
+                }
             }
         }
     }
 
-    // ─── DIALOGS ────────────────────────────────────
+    // ─── DIALOGS ───────────────────────────────────────
     if (showLoginDialog) {
         LoginDialog(
             onDismiss = { showLoginDialog = false },
@@ -191,6 +162,44 @@ fun HomeScreen(
     }
 }
 
+// Extracted HomeFeed for clarity
+@Composable
+private fun HomeFeed(userRole: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp)
+    ) {
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("Role: $userRole", style = MaterialTheme.typography.labelMedium)
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("FILTERS + SORT OPTIONS", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedTextField(
+            value = "",
+            onValueChange = {},
+            placeholder = { Text("Search buyers…") },
+            enabled = false,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        repeat(5) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+                    .clickable { }
+            ) {
+                Text(
+                    text = "Buyer Ad #${it + 1}",
+                    modifier = Modifier.padding(16.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun ScanPlaceholder() = Box(
     Modifier.fillMaxSize(), contentAlignment = Alignment.Center
@@ -209,9 +218,9 @@ private fun AccountPlaceholder() = Box(
 @Composable
 fun HomeScreenPreview() {
     HomeScreen(
-        username = "AdminUser",
+        username = "Darshaun",
         isLoggedIn = true,
-        userRole = "admin",
+        userRole = "buyer",
         onLogin = { _, _ -> },
         onLogout = {}
     )
