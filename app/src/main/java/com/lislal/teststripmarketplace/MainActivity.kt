@@ -11,11 +11,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
+import com.google.firebase.database.*
 import com.lislal.teststripmarketplace.ui.home.HomeScreen
 import com.lislal.teststripmarketplace.ui.theme.TestStripMarketplaceTheme
 
@@ -26,6 +24,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             TestStripMarketplaceTheme {
+                val context = LocalContext.current
                 val auth = remember { FirebaseAuth.getInstance() }
                 val dbRef = remember { FirebaseDatabase.getInstance().getReference("users") }
 
@@ -35,37 +34,47 @@ class MainActivity : ComponentActivity() {
                 var isSuspended by rememberSaveable { mutableStateOf(false) }
                 var isBanned by rememberSaveable { mutableStateOf(false) }
 
-                // Fetch user info if already logged in (fresh launch)
+                // On fresh launch: fetch profile + flags
                 LaunchedEffect(Unit) {
                     auth.currentUser?.uid?.let { uid ->
-                        dbRef.child(uid).get().addOnSuccessListener { snapshot ->
-                            username = snapshot.child("username").value?.toString().orEmpty()
-                            userRole = snapshot.child("role").value?.toString().orEmpty()
-                        }
-                    }
-                }
+                        dbRef.child(uid).get()
+                            .addOnSuccessListener { snap ->
+                                username = snap.child("username").value?.toString().orEmpty()
+                                userRole = snap.child("role").value?.toString().orEmpty()
+                                isSuspended = snap.child("isSuspended").getValue(Boolean::class.java) ?: false
+                                isBanned    = snap.child("isBannedSuspended").getValue(Boolean::class.java) ?: false
 
-                // Only attach listener when logged in
-                auth.currentUser?.uid?.let { uid ->
-                    DisposableEffect(uid) {
-                        val listener = dbRef.child(uid).addValueEventListener(object :
-                            ValueEventListener {
-                            override fun onDataChange(snapshot: DataSnapshot) {
-                                username = snapshot.child("username").getValue(String::class.java).orEmpty()
-                                userRole = snapshot.child("role").getValue(String::class.java).orEmpty()
-                                isSuspended = snapshot.child("isSuspended").getValue(Boolean::class.java) ?: false
-                                isBanned = snapshot.child("isBannedSuspended").getValue(Boolean::class.java) ?: false
-                                // If user is banned or suspended, you can immediately force logout or disable UI here
-                                if (isBanned || isSuspended) {
+                                if (isSuspended || isBanned) {
+                                    val msg = if (isBanned) "Your account has been banned." else "Your account has been suspended."
+                                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                                     auth.signOut()
                                     isLoggedIn = false
                                 }
                             }
-                            override fun onCancelled(error: DatabaseError) { /* handle error */ }
-                        })
-                        onDispose {
-                            dbRef.child(uid).removeEventListener(listener)
-                        }
+                    }
+                }
+
+                // Listen for live changes to flags and profile
+                auth.currentUser?.uid?.let { uid ->
+                    DisposableEffect(uid) {
+                        val listener = dbRef.child(uid)
+                            .addValueEventListener(object : ValueEventListener {
+                                override fun onDataChange(snapshot: DataSnapshot) {
+                                    username = snapshot.child("username").getValue(String::class.java).orEmpty()
+                                    userRole = snapshot.child("role").getValue(String::class.java).orEmpty()
+                                    val suspended = snapshot.child("isSuspended").getValue(Boolean::class.java) ?: false
+                                    val banned    = snapshot.child("isBannedSuspended").getValue(Boolean::class.java) ?: false
+
+                                    if (suspended || banned) {
+                                        val msg = if (banned) "You have been banned." else "You have been suspended."
+                                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                        auth.signOut()
+                                        isLoggedIn = false
+                                    }
+                                }
+                                override fun onCancelled(error: DatabaseError) { /* ignore */ }
+                            })
+                        onDispose { dbRef.child(uid).removeEventListener(listener) }
                     }
                 }
 
@@ -79,14 +88,29 @@ class MainActivity : ComponentActivity() {
                             auth.signInWithEmailAndPassword(email, password)
                                 .addOnSuccessListener { result ->
                                     val uid = result.user?.uid ?: return@addOnSuccessListener
-                                    dbRef.child(uid).get().addOnSuccessListener { snapshot ->
-                                        username = snapshot.child("username").value?.toString().orEmpty()
-                                        userRole = snapshot.child("role").value?.toString().orEmpty()
-                                        isLoggedIn = true
-                                    }
+                                    // Fetch profile + suspension/ban
+                                    dbRef.child(uid).get()
+                                        .addOnSuccessListener { snap ->
+                                            val suspended = snap.child("isSuspended").getValue(Boolean::class.java) ?: false
+                                            val banned    = snap.child("isBannedSuspended").getValue(Boolean::class.java) ?: false
+
+                                            if (suspended || banned) {
+                                                val msg = if (banned) "Login denied: account banned." else "Login denied: account suspended."
+                                                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                                auth.signOut()
+                                                isLoggedIn = false
+                                            } else {
+                                                username = snap.child("username").value?.toString().orEmpty()
+                                                userRole = snap.child("role").value?.toString().orEmpty()
+                                                isLoggedIn = true
+                                            }
+                                        }
+                                        .addOnFailureListener {
+                                            Toast.makeText(context, "Failed to load profile.", Toast.LENGTH_SHORT).show()
+                                        }
                                 }
                                 .addOnFailureListener {
-                                    Toast.makeText(this, "Login failed: ${it.message}", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Login failed: ${it.message}", Toast.LENGTH_SHORT).show()
                                 }
                         },
                         onLogout = {
