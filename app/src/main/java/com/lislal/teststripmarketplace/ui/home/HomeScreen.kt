@@ -3,10 +3,10 @@ package com.lislal.teststripmarketplace.ui.home
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBox
-import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,9 +41,9 @@ fun HomeScreen(
         mutableStateOf(
             buildList {
                 add(Tab("Home", Icons.Default.Home))
-                add(Tab("Scan", Icons.Default.AccountBox))
+                add(Tab("Scan", Icons.Default.QrCodeScanner))
                 if (userRole.equals("admin", ignoreCase = true)) {
-                    add(Tab("Admin", Icons.Default.Face))
+                    add(Tab("Admin", Icons.Default.AdminPanelSettings))
                 }
                 add(Tab("Account", Icons.Default.Person))
             }
