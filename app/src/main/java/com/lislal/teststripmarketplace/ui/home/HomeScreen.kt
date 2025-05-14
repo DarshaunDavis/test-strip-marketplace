@@ -155,7 +155,10 @@ fun HomeScreen(
     }
 
     if (showRegisterDialog) {
-        RegisterDialog(onDismiss = { showRegisterDialog = false })
+        RegisterDialog(
+            onDismiss = { showRegisterDialog = false },
+            onRegister = onLogin
+        )
     }
 
     if (showForgotPasswordDialog) {

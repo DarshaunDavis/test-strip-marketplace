@@ -20,7 +20,8 @@ import com.google.firebase.database.FirebaseDatabase
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterDialog(
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onRegister: (email: String, password: String) -> Unit
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -70,6 +71,8 @@ fun RegisterDialog(
                                     )
                                 ).addOnCompleteListener {
                                     Toast.makeText(context, "Account created!", Toast.LENGTH_SHORT).show()
+                                    // ⭐️ Trigger automatic login
+                                    onRegister(email.trim(), password)
                                     onDismiss()
                                 }
                             }
@@ -94,18 +97,18 @@ fun RegisterDialog(
                     value = username,
                     onValueChange = { username = it },
                     label = { Text("Username") },
+                    singleLine = true,
                     keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
                     label = { Text("Email") },
+                    singleLine = true,
                     keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
@@ -113,9 +116,9 @@ fun RegisterDialog(
                     onValueChange = { password = it },
                     label = { Text("Password") },
                     visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
                     keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
@@ -123,9 +126,10 @@ fun RegisterDialog(
                     onValueChange = { confirmPassword = it },
                     label = { Text("Confirm Password") },
                     visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 ExposedDropdownMenuBox(
@@ -137,7 +141,10 @@ fun RegisterDialog(
                         value = selectedRole,
                         onValueChange = {},
                         label = { Text("Select Role") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        trailingIcon = {
+                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                        },
+                        singleLine = true,
                         keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                         modifier = Modifier
