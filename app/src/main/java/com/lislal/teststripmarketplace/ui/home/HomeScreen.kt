@@ -150,7 +150,7 @@ fun HomeScreen(
                     }
                 }
                 "Scan" -> ScanPlaceholder()
-                "Admin" -> AdminScreen(modifier = Modifier.fillMaxSize())
+                "Admin" -> AdminScreen()
                 "Account" -> AccountPlaceholder()
             }
         }

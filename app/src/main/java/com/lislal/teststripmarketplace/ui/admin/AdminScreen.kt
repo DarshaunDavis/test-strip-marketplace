@@ -1,0 +1,37 @@
+package com.lislal.teststripmarketplace.ui.admin
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.lislal.teststripmarketplace.viewmodel.AdminViewModel
+
+@Composable
+fun AdminScreen(
+    adminViewModel: AdminViewModel = viewModel()
+) {
+    val tabs = listOf("Users", "Products", "Admin")
+    var selectedTab by remember { mutableStateOf(0) }
+
+    Column(Modifier.fillMaxSize()) {
+        TabRow(selectedTabIndex = selectedTab) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = { Text(title) }
+                )
+            }
+        }
+
+        when (selectedTab) {
+            0 -> UsersTab(adminViewModel)
+            1 -> ProductsTab(adminViewModel)
+            2 -> AdminActionsTab(adminViewModel)
+        }
+    }
+}
