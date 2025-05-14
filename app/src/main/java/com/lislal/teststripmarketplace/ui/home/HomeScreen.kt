@@ -1,5 +1,6 @@
 package com.lislal.teststripmarketplace.ui.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBox
@@ -10,12 +11,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.lislal.teststripmarketplace.R
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     username: String?,
@@ -26,50 +27,23 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
-
     var showLoginDialog by remember { mutableStateOf(false) }
     var showRegisterDialog by remember { mutableStateOf(false) }
     var showForgotPasswordDialog by remember { mutableStateOf(false) }
     var showPasswordResetSnackbar by remember { mutableStateOf(false) }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (isLoggedIn) "Hello, $username" else "Hello, Guest",
-                            modifier = Modifier.weight(1f)
-                        )
-                        Icon(
-                            painter = painterResource(R.drawable.test_strip_logo),
-                            contentDescription = "App Logo",
-                            modifier = Modifier
-                                .size(40.dp)
-                                .weight(1f)
-                        )
-                        TextButton(
-                            onClick = {
-                                if (isLoggedIn) onLogout()
-                                else showLoginDialog = true
-                            },
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(if (isLoggedIn) "Logout" else "Login")
-                        }
-                    }
-                }
-            )
-        },
         bottomBar = {
             NavigationBar {
-                NavigationBarItem(selected = true, onClick = {}, icon = { Icon(Icons.Default.Home, contentDescription = "Home") })
-                NavigationBarItem(selected = false, onClick = {}, icon = { Icon(Icons.Default.AccountBox, contentDescription = "Scan") })
-                NavigationBarItem(selected = false, onClick = {}, icon = { Icon(Icons.Default.Person, contentDescription = "Account") })
+                NavigationBarItem(selected = true, onClick = {}, icon = {
+                    Icon(Icons.Default.Home, contentDescription = "Home")
+                })
+                NavigationBarItem(selected = false, onClick = {}, icon = {
+                    Icon(Icons.Default.AccountBox, contentDescription = "Scan")
+                })
+                NavigationBarItem(selected = false, onClick = {}, icon = {
+                    Icon(Icons.Default.Person, contentDescription = "Account")
+                })
             }
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
@@ -78,22 +52,84 @@ fun HomeScreen(
             modifier = modifier
                 .padding(innerPadding)
                 .fillMaxSize()
-                .padding(16.dp)
+                .padding(horizontal = 16.dp)
         ) {
+            // ─── HEADER ─────────────────────────────────
+            val hour = java.util.Calendar.getInstance()
+                .get(java.util.Calendar.HOUR_OF_DAY)
+            val greetingPrefix = when (hour) {
+                in 0..11 -> "Good morning"
+                in 12..16 -> "Good afternoon"
+                else -> "Good evening"
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp, bottom = 8.dp)
+                    .height(IntrinsicSize.Min) // wrap content height
+            ) {
+                // Left: Greeting (two lines)
+                Column(
+                    modifier = Modifier.align(Alignment.CenterStart)
+                ) {
+                    Text(
+                        greetingPrefix,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Text(
+                        text = if (isLoggedIn && !username.isNullOrBlank()) username else "Guest",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                    )
+                }
+
+                // Center: Logo
+                Icon(
+                    painter = painterResource(R.drawable.test_strip_logo),
+                    contentDescription = "App Logo",
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(150.dp)
+                )
+
+                // Right: Login / Logout
+                TextButton(
+                    onClick = {
+                        if (isLoggedIn) onLogout() else showLoginDialog = true
+                    },
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                ) {
+                    Text(if (isLoggedIn) "Logout" else "Login")
+                }
+            }
+            // ─────────────────────────────────────────────
+
+            Spacer(modifier = Modifier.height(16.dp))
             Text("Role: $userRole", style = MaterialTheme.typography.labelMedium)
             Spacer(modifier = Modifier.height(16.dp))
 
             Text("FILTERS + SORT OPTIONS", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Placeholder search bar for buyers
+            OutlinedTextField(
+                value = "",
+                onValueChange = {},
+                placeholder = { Text("Search buyers…") },
+                enabled = false,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
             repeat(5) {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
+                        .clickable { }
                 ) {
                     Text(
-                        "Buyer Ad #${it + 1}",
+                        text = "Buyer Ad #${it + 1}",
                         modifier = Modifier.padding(16.dp),
                         textAlign = TextAlign.Center
                     )
@@ -102,6 +138,7 @@ fun HomeScreen(
         }
     }
 
+    // ─── DIALOGS ────────────────────────────────────
     if (showLoginDialog) {
         LoginDialog(
             onDismiss = { showLoginDialog = false },
@@ -118,9 +155,7 @@ fun HomeScreen(
     }
 
     if (showRegisterDialog) {
-        RegisterDialog(
-            onDismiss = { showRegisterDialog = false }
-        )
+        RegisterDialog(onDismiss = { showRegisterDialog = false })
     }
 
     if (showForgotPasswordDialog) {
