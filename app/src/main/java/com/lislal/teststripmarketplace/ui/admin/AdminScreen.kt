@@ -15,7 +15,7 @@ fun AdminScreen(
     adminViewModel: AdminViewModel = viewModel()
 ) {
     val tabs = listOf("Users", "Products", "Admin")
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(0) }
 
     Column(Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = selectedTab) {
@@ -31,7 +31,7 @@ fun AdminScreen(
         when (selectedTab) {
             0 -> UsersTab(adminViewModel)
             1 -> ProductsTab(adminViewModel)
-            2 -> AdminActionsTab(adminViewModel)
+            2 -> AdminActionsTab()
         }
     }
 }
