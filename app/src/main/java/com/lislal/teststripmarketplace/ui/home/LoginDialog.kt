@@ -32,6 +32,16 @@ fun LoginDialog(
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
 
+    // Helper to perform login + dismiss
+    fun submit() {
+        if (email.isBlank() || password.isBlank()) {
+            Toast.makeText(context, "Email and password cannot be empty", Toast.LENGTH_SHORT).show()
+        } else {
+            onLogin(email.trim(), password)
+            onDismiss()
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Log In") },
@@ -41,12 +51,12 @@ fun LoginDialog(
                     value = email,
                     onValueChange = { email = it },
                     label = { Text("Email") },
+                    singleLine = true,
                     keyboardOptions = KeyboardOptions.Default.copy(
                         imeAction = ImeAction.Next,
                         keyboardType = KeyboardType.Email
                     ),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
@@ -60,10 +70,18 @@ fun LoginDialog(
                             Icon(icon, contentDescription = if (passwordVisible) "Hide password" else "Show password")
                         }
                     },
-                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions.Default.copy(
+                        imeAction = ImeAction.Done,
+                        keyboardType = KeyboardType.Password
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            focusManager.clearFocus()
+                            submit()
+                        }
+                    ),
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
@@ -80,14 +98,7 @@ fun LoginDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                if (email.isBlank() || password.isBlank()) {
-                    Toast.makeText(context, "Email and password cannot be empty", Toast.LENGTH_SHORT).show()
-                } else {
-                    onLogin(email.trim(), password)
-                    onDismiss()
-                }
-            }) {
+            TextButton(onClick = { submit() }) {
                 Text("Login")
             }
         },

@@ -87,6 +87,7 @@ class MainActivity : ComponentActivity() {
                         onLogin    = { email, password ->
                             auth.signInWithEmailAndPassword(email, password)
                                 .addOnSuccessListener { _ ->
+                                    isLoggedIn = true
                                     // Listener above will immediately fire with profile+flags
                                 }
                                 .addOnFailureListener {
