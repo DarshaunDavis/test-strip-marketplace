@@ -26,23 +26,25 @@ class MainActivity : ComponentActivity() {
             TestStripMarketplaceTheme {
                 val context = LocalContext.current
                 val auth = remember { FirebaseAuth.getInstance() }
-                val dbRef = remember { FirebaseDatabase.getInstance().getReference("users") }
+                val usersRef = remember {
+                    FirebaseDatabase.getInstance().getReference("users")
+                }
 
                 var isLoggedIn by rememberSaveable { mutableStateOf(auth.currentUser != null) }
                 var username   by rememberSaveable { mutableStateOf("") }
                 var userRole   by rememberSaveable { mutableStateOf("") }
 
-                // Listen for changes on the current user's profile & flags
+                // Attach a listener to currentUser’s record (fires immediately on login/register)
                 val uid = auth.currentUser?.uid
                 DisposableEffect(uid) {
                     if (uid != null) {
                         val listener = object : ValueEventListener {
                             override fun onDataChange(snapshot: DataSnapshot) {
-                                // Update profile fields
-                                username = snapshot.child("username").getValue(String::class.java).orEmpty()
-                                userRole = snapshot.child("role").getValue(String::class.java).orEmpty()
+                                username = snapshot.child("username")
+                                    .getValue(String::class.java).orEmpty()
+                                userRole = snapshot.child("role")
+                                    .getValue(String::class.java).orEmpty()
 
-                                // Check suspension/ban flags
                                 val suspended = snapshot.child("isSuspended")
                                     .getValue(Boolean::class.java) ?: false
                                 val banned = snapshot.child("isBannedSuspended")
@@ -51,7 +53,8 @@ class MainActivity : ComponentActivity() {
                                 if (suspended || banned) {
                                     Toast.makeText(
                                         context,
-                                        if (banned) "Your account has been banned." else "Your account has been suspended.",
+                                        if (banned) "Your account has been banned."
+                                        else "Your account has been suspended.",
                                         Toast.LENGTH_LONG
                                     ).show()
                                     auth.signOut()
@@ -60,21 +63,16 @@ class MainActivity : ComponentActivity() {
                                     isLoggedIn = true
                                 }
                             }
-
-                            override fun onCancelled(error: DatabaseError) {
-                                // Optionally handle cancellation
-                            }
+                            override fun onCancelled(error: DatabaseError) { /* no-op */ }
                         }
-
-                        // Attach and detach listener
-                        dbRef.child(uid).addValueEventListener(listener)
+                        usersRef.child(uid).addValueEventListener(listener)
                         onDispose {
-                            dbRef.child(uid).removeEventListener(listener)
+                            usersRef.child(uid).removeEventListener(listener)
                         }
                     } else {
-                        // No logged-in user: ensure state reflects that
+                        // ensure state is logged-out if there's no user
                         isLoggedIn = false
-                        onDispose { /* nothing to clean up */ }
+                        onDispose { }
                     }
                 }
 
@@ -86,12 +84,12 @@ class MainActivity : ComponentActivity() {
                         modifier   = Modifier.padding(innerPadding),
                         onLogin    = { email, password ->
                             auth.signInWithEmailAndPassword(email, password)
-                                .addOnSuccessListener { _ ->
-                                    isLoggedIn = true
-                                    // Listener above will immediately fire with profile+flags
-                                }
+                                .addOnSuccessListener { /* listener above will fire right away */ }
                                 .addOnFailureListener {
-                                    Toast.makeText(context, "Login failed: ${it.message}", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context,
+                                        "Login failed: ${it.message}",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
                         },
                         onLogout   = {
