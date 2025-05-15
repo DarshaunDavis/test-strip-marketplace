@@ -3,15 +3,18 @@ package com.lislal.teststripmarketplace.ui.home
 import android.util.Patterns
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
@@ -23,14 +26,15 @@ fun RegisterDialog(
     onRegister: (email: String, password: String) -> Unit
 ) {
     val context = LocalContext.current
-    val focusManager = LocalFocusManager.current
 
     var username by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var confirmVisible by remember { mutableStateOf(false) }
 
-    // Role dropdown
+    // Only end-user roles
     val roles = listOf("User", "Buyer", "Wholesaler")
     var selectedRole by remember { mutableStateOf("") }
     var roleExpanded by remember { mutableStateOf(false) }
@@ -55,7 +59,10 @@ fun RegisterDialog(
                     onValueChange = { email = it },
                     label = { Text("Email") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Next,
+                        keyboardType = KeyboardType.Email
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
@@ -64,7 +71,13 @@ fun RegisterDialog(
                     value = password,
                     onValueChange = { password = it },
                     label = { Text("Password") },
-                    visualTransformation = PasswordVisualTransformation(),
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        val icon = if (passwordVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(icon, contentDescription = if (passwordVisible) "Hide password" else "Show password")
+                        }
+                    },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                     modifier = Modifier.fillMaxWidth()
@@ -75,15 +88,19 @@ fun RegisterDialog(
                     value = confirmPassword,
                     onValueChange = { confirmPassword = it },
                     label = { Text("Confirm Password") },
-                    visualTransformation = PasswordVisualTransformation(),
+                    visualTransformation = if (confirmVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        val icon = if (confirmVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility
+                        IconButton(onClick = { confirmVisible = !confirmVisible }) {
+                            Icon(icon, contentDescription = if (confirmVisible) "Hide password" else "Show password")
+                        }
+                    },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
 
-                // Role selector
                 ExposedDropdownMenuBox(
                     expanded = roleExpanded,
                     onExpandedChange = { roleExpanded = !roleExpanded }
@@ -118,22 +135,24 @@ fun RegisterDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                // Validate
-                if (username.isBlank() ||
-                    email.isBlank() || !Patterns.EMAIL_ADDRESS.matcher(email).matches() ||
-                    password.length < 6 || password != confirmPassword ||
-                    selectedRole.isBlank()
+                // Basic validation
+                if (username.isBlank()
+                    || email.isBlank()
+                    || !Patterns.EMAIL_ADDRESS.matcher(email).matches()
+                    || password.length < 6
+                    || password != confirmPassword
+                    || selectedRole.isBlank()
                 ) {
                     Toast.makeText(context, "Please complete all fields correctly", Toast.LENGTH_SHORT).show()
                     return@TextButton
                 }
 
-                // 1) Auth
+                // 1) Create Auth user
                 FirebaseAuth.getInstance()
                     .createUserWithEmailAndPassword(email.trim(), password)
                     .addOnSuccessListener { authResult ->
                         val uid = authResult.user?.uid ?: return@addOnSuccessListener
-                        // 2) DB write
+                        // 2) Write profile to DB
                         val userObj = mapOf(
                             "email" to email.trim(),
                             "username" to username.trim(),
@@ -145,36 +164,26 @@ fun RegisterDialog(
                             .getReference("users/$uid")
                             .setValue(userObj)
                             .addOnSuccessListener {
-                                Toast
-                                    .makeText(context, "Account created!", Toast.LENGTH_SHORT)
-                                    .show()
-                                // 3) Auto-login
+                                Toast.makeText(context, "Account created!", Toast.LENGTH_SHORT).show()
+                                // 3) Trigger login flow
                                 onRegister(email.trim(), password)
                                 onDismiss()
                             }
                             .addOnFailureListener { dbErr ->
-                                Toast
-                                    .makeText(context,
-                                        "Error saving user: ${dbErr.message}",
-                                        Toast.LENGTH_LONG
-                                    )
-                                    .show()
+                                Toast.makeText(context, "Error saving user: ${dbErr.message}", Toast.LENGTH_LONG).show()
                             }
                     }
                     .addOnFailureListener { authErr ->
-                        Toast
-                            .makeText(context,
-                                "Registration failed: ${authErr.message}",
-                                Toast.LENGTH_LONG
-                            )
-                            .show()
+                        Toast.makeText(context, "Registration failed: ${authErr.message}", Toast.LENGTH_LONG).show()
                     }
             }) {
                 Text("Register")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
         }
     )
 }
