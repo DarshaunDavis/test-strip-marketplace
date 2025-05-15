@@ -1,3 +1,4 @@
+// AdminActionsTab.kt
 package com.lislal.teststripmarketplace.ui.admin
 
 import android.os.Build
@@ -17,35 +18,36 @@ import java.time.LocalDate
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminActionsTab() {
-    // — your buyers node —
     val buyersRef = remember {
         FirebaseDatabase.getInstance().getReference("buyers")
     }
-    // in-memory list of (id, name)
+
+    // in-memory cache
     val buyers = remember { mutableStateListOf<Pair<String, String>>() }
 
-    // 1) One-time load so UI isn’t empty
+    // one-time load
     LaunchedEffect(buyersRef) {
-        buyersRef.get()
-            .addOnSuccessListener { snap ->
-                buyers.clear()
-                snap.children.forEach { child ->
-                    val id = child.key ?: return@forEach
+        buyersRef.get().addOnSuccessListener { snap ->
+            buyers.clear()
+            snap.children.forEach { child ->
+                child.key?.let { id ->
                     val name = child.child("name").getValue(String::class.java) ?: "Unnamed"
                     buyers += id to name
                 }
             }
+        }
     }
 
-    // 2) Live updates
+    // live updates
     DisposableEffect(buyersRef) {
         val listener = object : ValueEventListener {
             override fun onDataChange(snap: DataSnapshot) {
                 buyers.clear()
                 snap.children.forEach { child ->
-                    val id = child.key ?: return@forEach
-                    val name = child.child("name").getValue(String::class.java) ?: "Unnamed"
-                    buyers += id to name
+                    child.key?.let { id ->
+                        val name = child.child("name").getValue(String::class.java) ?: "Unnamed"
+                        buyers += id to name
+                    }
                 }
             }
             override fun onCancelled(error: DatabaseError) { /* no-op */ }
@@ -55,27 +57,28 @@ fun AdminActionsTab() {
     }
 
     // UI state
-    var buyerExpanded     by remember { mutableStateOf(false) }
-    var selectedBuyerId   by remember { mutableStateOf<String?>(null) }
+    var buyerExpanded    by remember { mutableStateOf(false) }
+    var selectedBuyerId  by remember { mutableStateOf<String?>(null) }
+    var showAddDialog    by remember { mutableStateOf(false) }
 
-    val categories        = listOf("Test Strips", "Devices", "Insulin")
-    var categoryExpanded  by remember { mutableStateOf(false) }
-    var selectedCategory  by remember { mutableStateOf<String?>(null) }
+    val categories       = listOf("Test Strips", "Devices", "Insulin")
+    var categoryExpanded by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf<String?>(null) }
 
-    var updaterExpanded   by remember { mutableStateOf(false) }
+    var updaterExpanded  by remember { mutableStateOf(false) }
     var selectedUpdaterId by remember { mutableStateOf<String?>(null) }
 
-    var pickedDate        by remember { mutableStateOf<LocalDate?>(null) }
-    var showDatePicker    by remember { mutableStateOf(false) }
+    var pickedDate       by remember { mutableStateOf<LocalDate?>(null) }
+    var showDatePicker   by remember { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier
+        Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        // ── Buyers ────────────────────────────────────────────
+        // ── Buyers ───────────────────────────────────────
         Text("Manage Buyers", style = MaterialTheme.typography.titleMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ExposedDropdownMenuBox(
@@ -87,12 +90,10 @@ fun AdminActionsTab() {
                         ?: if (buyers.isEmpty()) "Loading buyers…" else "Select Buyer",
                     onValueChange = {},
                     readOnly = true,
-                    trailingIcon = {
-                        ExposedDropdownMenuDefaults.TrailingIcon(buyerExpanded)
-                    },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(buyerExpanded) },
                     modifier = Modifier
                         .weight(1f)
-                        .menuAnchor()
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                 )
                 ExposedDropdownMenu(
                     expanded = buyerExpanded,
@@ -103,13 +104,13 @@ fun AdminActionsTab() {
                             text = { Text(name) },
                             onClick = {
                                 selectedBuyerId = id
-                                buyerExpanded = false
+                                buyerExpanded    = false
                             }
                         )
                     }
                 }
             }
-            Button(onClick = { /* TODO: AddBuyerDialog */ }) {
+            Button(onClick = { showAddDialog = true }) {
                 Text("Add Buyer")
             }
         }
@@ -124,13 +125,13 @@ fun AdminActionsTab() {
             )
         }
 
-        // ── Categories ────────────────────────────────────────
+        // ── Categories ───────────────────────────────────
         Text("Categories", style = MaterialTheme.typography.titleMedium)
         categories.forEach { cat ->
             Text(cat, style = MaterialTheme.typography.bodyMedium)
         }
 
-        // ── Last Updated Dates ────────────────────────────────
+        // ── Last Updated Dates ───────────────────────────
         Text("Set Last Updated Date", style = MaterialTheme.typography.titleMedium)
         ExposedDropdownMenuBox(
             expanded = categoryExpanded,
@@ -140,12 +141,10 @@ fun AdminActionsTab() {
                 value = selectedCategory ?: "Select Category",
                 onValueChange = {},
                 readOnly = true,
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(categoryExpanded)
-                },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(categoryExpanded) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .menuAnchor()
+                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
             )
             ExposedDropdownMenu(
                 expanded = categoryExpanded,
@@ -174,12 +173,10 @@ fun AdminActionsTab() {
                         ?: "Select Buyer",
                     onValueChange = {},
                     readOnly = true,
-                    trailingIcon = {
-                        ExposedDropdownMenuDefaults.TrailingIcon(updaterExpanded)
-                    },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(updaterExpanded) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor()
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                 )
                 ExposedDropdownMenu(
                     expanded = updaterExpanded,
@@ -190,7 +187,7 @@ fun AdminActionsTab() {
                             text = { Text(name) },
                             onClick = {
                                 selectedUpdaterId = id
-                                updaterExpanded = false
+                                updaterExpanded   = false
                             }
                         )
                     }
@@ -213,11 +210,23 @@ fun AdminActionsTab() {
         }
     }
 
+    // add-buyer dialog
+    if (showAddDialog) {
+        AddBuyerDialog(
+            onDismiss = { showAddDialog = false },
+            onSubmit = { buyer ->
+                buyersRef.push().setValue(buyer)
+                showAddDialog = false
+            }
+        )
+    }
+
+    // date-picker stub
     if (showDatePicker) {
         DatePickerDialog(
-            initialDate    = pickedDate ?: LocalDate.now(),
-            onDateSelected = {
-                pickedDate = it
+            initialDate     = pickedDate ?: LocalDate.now(),
+            onDateSelected  = {
+                pickedDate    = it
                 showDatePicker = false
             },
             onDismissRequest = { showDatePicker = false }
@@ -225,9 +234,10 @@ fun AdminActionsTab() {
     }
 }
 
+// date-picker stub – public so it resolves
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-private fun DatePickerDialog(
+fun DatePickerDialog(
     initialDate: LocalDate,
     onDateSelected: (LocalDate) -> Unit,
     onDismissRequest: () -> Unit
