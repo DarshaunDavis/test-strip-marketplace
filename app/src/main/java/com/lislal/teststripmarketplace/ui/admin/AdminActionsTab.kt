@@ -4,7 +4,6 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -22,11 +21,10 @@ import java.time.LocalDate
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminActionsTab() {
+    // ── Firebase setup ─────────────────────────────────────
     val buyersRef = remember {
         FirebaseDatabase.getInstance().getReference("buyers")
     }
-
-    // in-memory cache
     val buyers = remember { mutableStateListOf<Pair<String, String>>() }
 
     // one-time load
@@ -35,13 +33,13 @@ fun AdminActionsTab() {
             buyers.clear()
             snap.children.forEach { child ->
                 child.key?.let { id ->
-                    val name = child.child("name").getValue(String::class.java) ?: "Unnamed"
+                    val name = child.child("name")
+                        .getValue(String::class.java) ?: "Unnamed"
                     buyers += id to name
                 }
             }
         }
     }
-
     // live updates
     DisposableEffect(buyersRef) {
         val listener = object : ValueEventListener {
@@ -49,32 +47,35 @@ fun AdminActionsTab() {
                 buyers.clear()
                 snap.children.forEach { child ->
                     child.key?.let { id ->
-                        val name = child.child("name").getValue(String::class.java) ?: "Unnamed"
+                        val name = child.child("name")
+                            .getValue(String::class.java) ?: "Unnamed"
                         buyers += id to name
                     }
                 }
             }
-            override fun onCancelled(error: DatabaseError) { /* no-op */ }
+            override fun onCancelled(error: DatabaseError) {}
         }
         buyersRef.addValueEventListener(listener)
         onDispose { buyersRef.removeEventListener(listener) }
     }
 
-    // UI state
+    // ── UI state ───────────────────────────────────────────
     var buyerExpanded    by remember { mutableStateOf(false) }
     var selectedBuyerId  by remember { mutableStateOf<String?>(null) }
     var showAddDialog    by remember { mutableStateOf(false) }
+    var showEditDialog   by remember { mutableStateOf(false) }
 
-    val categories       = listOf("Test Strips", "Devices", "Insulin")
-    var categoryExpanded by remember { mutableStateOf(false) }
-    var selectedCategory by remember { mutableStateOf<String?>(null) }
+    val categories        = listOf("Test Strips", "Devices", "Insulin")
+    var categoryExpanded  by remember { mutableStateOf(false) }
+    var selectedCategory  by remember { mutableStateOf<String?>(null) }
 
-    var updaterExpanded  by remember { mutableStateOf(false) }
+    var updaterExpanded   by remember { mutableStateOf(false) }
     var selectedUpdaterId by remember { mutableStateOf<String?>(null) }
 
     var pickedDate       by remember { mutableStateOf<LocalDate?>(null) }
     var showDatePicker   by remember { mutableStateOf(false) }
 
+    // ── Layout ─────────────────────────────────────────────
     Column(
         Modifier
             .fillMaxSize()
@@ -82,9 +83,9 @@ fun AdminActionsTab() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        Spacer(Modifier.height(16.dp)) // extra space below the tabs
+        Spacer(Modifier.height(16.dp))
 
-        // ── Manage Buyers ─────────────────────────────────────
+        // ── Manage Buyers Card ───────────────────────────────
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -92,7 +93,7 @@ fun AdminActionsTab() {
                     BorderStroke(1.dp, MaterialTheme.colorScheme.onSurfaceVariant),
                     shape = RectangleShape
                 ),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            colors    = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
@@ -101,48 +102,49 @@ fun AdminActionsTab() {
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Heading, centered
                 Text(
                     "Manage Buyers",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.fillMaxWidth(),
+                    style     = MaterialTheme.typography.titleMedium,
+                    modifier  = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center
                 )
 
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.Top
+                    verticalAlignment   = Alignment.Top
                 ) {
-                    // ── Edit Buyer ─────────────────
+                    // ── Edit Buyer ─────────────────────────────
                     Column(Modifier.weight(1f)) {
                         Text("Edit Buyer", style = MaterialTheme.typography.labelLarge)
                         Spacer(Modifier.height(4.dp))
                         ExposedDropdownMenuBox(
-                            expanded = buyerExpanded,
-                            onExpandedChange = { buyerExpanded = !buyerExpanded }
+                            expanded        = buyerExpanded,
+                            onExpandedChange= { buyerExpanded = !buyerExpanded }
                         ) {
                             OutlinedTextField(
-                                value = buyers.firstOrNull { it.first == selectedBuyerId }?.second
+                                value       = buyers.firstOrNull { it.first == selectedBuyerId }?.second
                                     ?: if (buyers.isEmpty()) "Loading buyers…" else "Select Buyer",
-                                onValueChange = {},
-                                readOnly = true,
-                                trailingIcon = {
+                                onValueChange= { },
+                                readOnly    = true,
+                                trailingIcon= {
                                     ExposedDropdownMenuDefaults.TrailingIcon(buyerExpanded)
                                 },
-                                modifier = Modifier
+                                modifier    = Modifier
                                     .fillMaxWidth()
                                     .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                             )
                             ExposedDropdownMenu(
-                                expanded = buyerExpanded,
-                                onDismissRequest = { buyerExpanded = false }
+                                expanded        = buyerExpanded,
+                                onDismissRequest= { buyerExpanded = false }
                             ) {
                                 buyers.forEach { (id, name) ->
                                     DropdownMenuItem(
-                                        text = { Text(name) },
+                                        text    = { Text(name) },
                                         onClick = {
                                             selectedBuyerId = id
-                                            buyerExpanded    = false
+                                            buyerExpanded   = false
                                         }
                                     )
                                 }
@@ -150,31 +152,40 @@ fun AdminActionsTab() {
                         }
                     }
 
-                    // ── Add Buyer ──────────────────
+                    // ── Add Buyer ──────────────────────────────
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Add Buyer", style = MaterialTheme.typography.labelLarge)
                         Spacer(Modifier.height(4.dp))
                         Button(
-                            onClick = { showAddDialog = true },
-                            modifier = Modifier.size(36.dp),
+                            onClick        = { showAddDialog = true },
+                            modifier       = Modifier.size(36.dp),
                             contentPadding = PaddingValues(0.dp)
                         ) {
                             Text("+", style = MaterialTheme.typography.titleLarge)
                         }
                     }
                 }
-            }
-        }
 
-        selectedBuyerId?.let { id ->
-            val name = buyers.firstOrNull { it.first == id }?.second.orEmpty()
-            Text(
-                "Editing: $name",
-                Modifier
-                    .clickable { /* TODO: EditBuyerDialog(id) */ }
-                    .padding(start = 8.dp),
-                style = MaterialTheme.typography.bodyLarge
-            )
+                // ── Selected Buyer + Edit Link (inside card) ──
+                selectedBuyerId?.let { id ->
+                    val name = buyers.firstOrNull { it.first == id }?.second.orEmpty()
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment     = Alignment.CenterVertically
+                    ) {
+                        Text(name, style = MaterialTheme.typography.bodyLarge)
+                        TextButton(onClick = {
+                            // open the edit dialog
+                            showEditDialog = true
+                        }) {
+                            Text("Edit")
+                        }
+                    }
+                }
+            }
         }
 
         // ── Categories ───────────────────────────────────────
@@ -186,25 +197,27 @@ fun AdminActionsTab() {
         // ── Last Updated Dates ───────────────────────────────
         Text("Set Last Updated Date", style = MaterialTheme.typography.titleMedium)
         ExposedDropdownMenuBox(
-            expanded = categoryExpanded,
-            onExpandedChange = { categoryExpanded = !categoryExpanded }
+            expanded        = categoryExpanded,
+            onExpandedChange= { categoryExpanded = !categoryExpanded }
         ) {
             OutlinedTextField(
-                value = selectedCategory ?: "Select Category",
-                onValueChange = {},
-                readOnly = true,
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(categoryExpanded) },
-                modifier = Modifier
+                value       = selectedCategory ?: "Select Category",
+                onValueChange= { },
+                readOnly    = true,
+                trailingIcon= {
+                    ExposedDropdownMenuDefaults.TrailingIcon(categoryExpanded)
+                },
+                modifier    = Modifier
                     .fillMaxWidth()
                     .menuAnchor(MenuAnchorType.PrimaryNotEditable)
             )
             ExposedDropdownMenu(
-                expanded = categoryExpanded,
-                onDismissRequest = { categoryExpanded = false }
+                expanded        = categoryExpanded,
+                onDismissRequest= { categoryExpanded = false }
             ) {
                 categories.forEach { cat ->
                     DropdownMenuItem(
-                        text = { Text(cat) },
+                        text    = { Text(cat) },
                         onClick = {
                             selectedCategory = cat
                             categoryExpanded = false
@@ -217,26 +230,28 @@ fun AdminActionsTab() {
         selectedCategory?.let {
             Spacer(Modifier.height(8.dp))
             ExposedDropdownMenuBox(
-                expanded = updaterExpanded,
-                onExpandedChange = { updaterExpanded = !updaterExpanded }
+                expanded        = updaterExpanded,
+                onExpandedChange= { updaterExpanded = !updaterExpanded }
             ) {
                 OutlinedTextField(
-                    value = buyers.firstOrNull { it.first == selectedUpdaterId }?.second
+                    value       = buyers.firstOrNull { it.first == selectedUpdaterId }?.second
                         ?: "Select Buyer",
-                    onValueChange = {},
-                    readOnly = true,
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(updaterExpanded) },
-                    modifier = Modifier
+                    onValueChange= { },
+                    readOnly    = true,
+                    trailingIcon= {
+                        ExposedDropdownMenuDefaults.TrailingIcon(updaterExpanded)
+                    },
+                    modifier    = Modifier
                         .fillMaxWidth()
                         .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                 )
                 ExposedDropdownMenu(
-                    expanded = updaterExpanded,
-                    onDismissRequest = { updaterExpanded = false }
+                    expanded        = updaterExpanded,
+                    onDismissRequest= { updaterExpanded = false }
                 ) {
                     buyers.forEach { (id, name) ->
                         DropdownMenuItem(
-                            text = { Text(name) },
+                            text    = { Text(name) },
                             onClick = {
                                 selectedUpdaterId = id
                                 updaterExpanded   = false
@@ -253,7 +268,7 @@ fun AdminActionsTab() {
                 Button(onClick = { showDatePicker = true }) {
                     Text(pickedDate?.toString() ?: "Pick Date")
                 }
-                Button(onClick = { /* TODO */ }) {
+                Button(onClick = { /* TODO: set last updated */ }) {
                     Text("Set Date")
                 }
             }
@@ -264,27 +279,46 @@ fun AdminActionsTab() {
     if (showAddDialog) {
         AddBuyerDialog(
             onDismiss = { showAddDialog = false },
-            onSubmit = { buyer ->
+            onSubmit  = { buyer ->
                 buyersRef.push().setValue(buyer)
                 showAddDialog = false
             }
         )
     }
 
-    // ── DatePicker ────────────────────────────────────────
+    // ── Edit Buyer Dialog ──────────────────────────────────
+    if (showEditDialog && selectedBuyerId != null) {
+        EditBuyerDialog(
+            onDismiss = { showEditDialog = false },
+            onSubmit  = { updates: Map<String, Any> ->
+                // only keep non-blank String fields
+                val filtered = updates
+                    .filterValues { v -> v is String && (v).isNotBlank() }
+
+                if (filtered.isNotEmpty()) {
+                    buyersRef
+                    .child(selectedBuyerId!!)
+                    .updateChildren(filtered)
+                    }
+                showEditDialog = false
+                }
+            )
+        }
+
+    // ── DatePicker stub ───────────────────────────────────
     if (showDatePicker) {
         DatePickerDialog(
-            initialDate    = pickedDate ?: LocalDate.now(),
-            onDateSelected = {
+            initialDate     = pickedDate ?: LocalDate.now(),
+            onDateSelected  = {
                 pickedDate    = it
                 showDatePicker = false
             },
-            onDismissRequest = { showDatePicker = false }
+            onDismissRequest= { showDatePicker = false }
         )
     }
 }
 
-// date-picker stub – public so it resolves
+// Make DatePickerDialog public so it resolves from above
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun DatePickerDialog(
