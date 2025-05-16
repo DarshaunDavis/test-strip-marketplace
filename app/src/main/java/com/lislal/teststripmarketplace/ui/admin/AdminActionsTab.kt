@@ -1,3 +1,4 @@
+// AdminActionsTab.kt
 package com.lislal.teststripmarketplace.ui.admin
 
 import android.os.Build
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,13 +23,15 @@ import java.time.LocalDate
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminActionsTab() {
-    // ── Firebase setup ─────────────────────────────────────
-    val buyersRef = remember {
-        FirebaseDatabase.getInstance().getReference("buyers")
-    }
-    val buyers = remember { mutableStateListOf<Pair<String, String>>() }
+    // ── Firebase references ───────────────────────────────
+    val buyersRef     = remember { FirebaseDatabase.getInstance().getReference("buyers") }
+    val categoriesRef = remember { FirebaseDatabase.getInstance().getReference("categories") }
 
-    // one-time load
+    // ── In-memory caches ──────────────────────────────────
+    val buyers     = remember { mutableStateListOf<Pair<String, String>>() }
+    val categories = remember { mutableStateListOf<String>() }
+
+    // ── Buyers: one-time load + live updates ─────────────
     LaunchedEffect(buyersRef) {
         buyersRef.get().addOnSuccessListener { snap ->
             buyers.clear()
@@ -40,15 +44,13 @@ fun AdminActionsTab() {
             }
         }
     }
-    // live updates
     DisposableEffect(buyersRef) {
         val listener = object : ValueEventListener {
             override fun onDataChange(snap: DataSnapshot) {
                 buyers.clear()
                 snap.children.forEach { child ->
                     child.key?.let { id ->
-                        val name = child.child("name")
-                            .getValue(String::class.java) ?: "Unnamed"
+                        val name = child.child("name").getValue(String::class.java) ?: "Unnamed"
                         buyers += id to name
                     }
                 }
@@ -59,23 +61,38 @@ fun AdminActionsTab() {
         onDispose { buyersRef.removeEventListener(listener) }
     }
 
+    // ── Categories: one-time load + live updates ──────────
+    LaunchedEffect(categoriesRef) {
+        categoriesRef.get().addOnSuccessListener { snap ->
+            categories.clear()
+            snap.children.forEach { it.key?.let(categories::add) }
+        }
+    }
+    DisposableEffect(categoriesRef) {
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snap: DataSnapshot) {
+                categories.clear()
+                snap.children.forEach { it.key?.let(categories::add) }
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        }
+        categoriesRef.addValueEventListener(listener)
+        onDispose { categoriesRef.removeEventListener(listener) }
+    }
+
     // ── UI state ───────────────────────────────────────────
-    var buyerExpanded    by remember { mutableStateOf(false) }
-    var selectedBuyerId  by remember { mutableStateOf<String?>(null) }
-    var showAddDialog    by remember { mutableStateOf(false) }
-    var showEditDialog   by remember { mutableStateOf(false) }
+    var buyerExpanded      by remember { mutableStateOf(false) }
+    var selectedBuyerId    by remember { mutableStateOf<String?>(null) }
+    var showAddBuyer       by remember { mutableStateOf(false) }
+    var showEditBuyer      by remember { mutableStateOf(false) }
 
-    val categories        = listOf("Test Strips", "Devices", "Insulin")
-    var categoryExpanded  by remember { mutableStateOf(false) }
-    var selectedCategory  by remember { mutableStateOf<String?>(null) }
+    var showAddCategory    by remember { mutableStateOf(false) }
+    var showDeleteCategory by remember { mutableStateOf(false) }
 
-    var updaterExpanded   by remember { mutableStateOf(false) }
-    var selectedUpdaterId by remember { mutableStateOf<String?>(null) }
+    var pickedDate         by remember { mutableStateOf<LocalDate?>(null) }
+    var showDatePicker     by remember { mutableStateOf(false) }
 
-    var pickedDate       by remember { mutableStateOf<LocalDate?>(null) }
-    var showDatePicker   by remember { mutableStateOf(false) }
-
-    // ── Layout ─────────────────────────────────────────────
+    // ── Main scrollable column ────────────────────────────
     Column(
         Modifier
             .fillMaxSize()
@@ -89,10 +106,7 @@ fun AdminActionsTab() {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .border(
-                    BorderStroke(1.dp, MaterialTheme.colorScheme.onSurfaceVariant),
-                    shape = RectangleShape
-                ),
+                .border(BorderStroke(1.dp, MaterialTheme.colorScheme.onSurfaceVariant), RectangleShape),
             colors    = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
@@ -102,7 +116,6 @@ fun AdminActionsTab() {
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Heading, centered
                 Text(
                     "Manage Buyers",
                     style     = MaterialTheme.typography.titleMedium,
@@ -113,31 +126,29 @@ fun AdminActionsTab() {
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment   = Alignment.Top
+                    verticalAlignment     = Alignment.Top
                 ) {
-                    // ── Edit Buyer ─────────────────────────────
+                    // Edit Buyer spinner
                     Column(Modifier.weight(1f)) {
                         Text("Edit Buyer", style = MaterialTheme.typography.labelLarge)
                         Spacer(Modifier.height(4.dp))
                         ExposedDropdownMenuBox(
-                            expanded        = buyerExpanded,
-                            onExpandedChange= { buyerExpanded = !buyerExpanded }
+                            expanded         = buyerExpanded,
+                            onExpandedChange = { buyerExpanded = !buyerExpanded }
                         ) {
                             OutlinedTextField(
-                                value       = buyers.firstOrNull { it.first == selectedBuyerId }?.second
+                                value        = buyers.firstOrNull { it.first == selectedBuyerId }?.second
                                     ?: if (buyers.isEmpty()) "Loading buyers…" else "Select Buyer",
-                                onValueChange= { },
-                                readOnly    = true,
-                                trailingIcon= {
-                                    ExposedDropdownMenuDefaults.TrailingIcon(buyerExpanded)
-                                },
-                                modifier    = Modifier
+                                onValueChange = {},
+                                readOnly     = true,
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(buyerExpanded) },
+                                modifier     = Modifier
                                     .fillMaxWidth()
                                     .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                             )
                             ExposedDropdownMenu(
-                                expanded        = buyerExpanded,
-                                onDismissRequest= { buyerExpanded = false }
+                                expanded         = buyerExpanded,
+                                onDismissRequest = { buyerExpanded = false }
                             ) {
                                 buyers.forEach { (id, name) ->
                                     DropdownMenuItem(
@@ -152,12 +163,12 @@ fun AdminActionsTab() {
                         }
                     }
 
-                    // ── Add Buyer ──────────────────────────────
+                    // Add Buyer button
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Add Buyer", style = MaterialTheme.typography.labelLarge)
                         Spacer(Modifier.height(4.dp))
                         Button(
-                            onClick        = { showAddDialog = true },
+                            onClick        = { showAddBuyer = true },
                             modifier       = Modifier.size(36.dp),
                             contentPadding = PaddingValues(0.dp)
                         ) {
@@ -166,7 +177,7 @@ fun AdminActionsTab() {
                     }
                 }
 
-                // ── Selected Buyer + Edit Link (inside card) ──
+                // Selected Buyer + Edit link
                 selectedBuyerId?.let { id ->
                     val name = buyers.firstOrNull { it.first == id }?.second.orEmpty()
                     Row(
@@ -177,10 +188,7 @@ fun AdminActionsTab() {
                         verticalAlignment     = Alignment.CenterVertically
                     ) {
                         Text(name, style = MaterialTheme.typography.bodyLarge)
-                        TextButton(onClick = {
-                            // open the edit dialog
-                            showEditDialog = true
-                        }) {
+                        TextButton(onClick = { showEditBuyer = true }) {
                             Text("Edit")
                         }
                     }
@@ -188,137 +196,129 @@ fun AdminActionsTab() {
             }
         }
 
-        // ── Categories ───────────────────────────────────────
-        Text("Categories", style = MaterialTheme.typography.titleMedium)
-        categories.forEach { cat ->
-            Text(cat, style = MaterialTheme.typography.bodyMedium)
-        }
-
-        // ── Last Updated Dates ───────────────────────────────
-        Text("Set Last Updated Date", style = MaterialTheme.typography.titleMedium)
-        ExposedDropdownMenuBox(
-            expanded        = categoryExpanded,
-            onExpandedChange= { categoryExpanded = !categoryExpanded }
+        // ── Manage Categories Card ───────────────────────────
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(BorderStroke(1.dp, MaterialTheme.colorScheme.onSurfaceVariant), RectangleShape),
+            colors    = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            OutlinedTextField(
-                value       = selectedCategory ?: "Select Category",
-                onValueChange= { },
-                readOnly    = true,
-                trailingIcon= {
-                    ExposedDropdownMenuDefaults.TrailingIcon(categoryExpanded)
-                },
-                modifier    = Modifier
+            Column(
+                Modifier
                     .fillMaxWidth()
-                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-            )
-            ExposedDropdownMenu(
-                expanded        = categoryExpanded,
-                onDismissRequest= { categoryExpanded = false }
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                categories.forEach { cat ->
-                    DropdownMenuItem(
-                        text    = { Text(cat) },
-                        onClick = {
-                            selectedCategory = cat
-                            categoryExpanded = false
-                        }
-                    )
-                }
-            }
-        }
-
-        selectedCategory?.let {
-            Spacer(Modifier.height(8.dp))
-            ExposedDropdownMenuBox(
-                expanded        = updaterExpanded,
-                onExpandedChange= { updaterExpanded = !updaterExpanded }
-            ) {
-                OutlinedTextField(
-                    value       = buyers.firstOrNull { it.first == selectedUpdaterId }?.second
-                        ?: "Select Buyer",
-                    onValueChange= { },
-                    readOnly    = true,
-                    trailingIcon= {
-                        ExposedDropdownMenuDefaults.TrailingIcon(updaterExpanded)
-                    },
-                    modifier    = Modifier
-                        .fillMaxWidth()
-                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                Text(
+                    "Manage Categories",
+                    style     = MaterialTheme.typography.titleMedium,
+                    modifier  = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
                 )
-                ExposedDropdownMenu(
-                    expanded        = updaterExpanded,
-                    onDismissRequest= { updaterExpanded = false }
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    buyers.forEach { (id, name) ->
-                        DropdownMenuItem(
-                            text    = { Text(name) },
-                            onClick = {
-                                selectedUpdaterId = id
-                                updaterExpanded   = false
-                            }
-                        )
+                    // Category list
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .heightIn(max = 200.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        categories.forEach { cat ->
+                            Text(
+                                text     = cat,
+                                modifier = Modifier.padding(vertical = 4.dp),
+                                style    = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+
+                    // Add / Delete buttons
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Add Category", style = MaterialTheme.typography.labelLarge)
+                        Button(
+                            onClick        = { showAddCategory = true },
+                            modifier       = Modifier.size(36.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text("+", style = MaterialTheme.typography.titleLarge)
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+
+                        Text("Delete Category", style = MaterialTheme.typography.labelLarge)
+                        Button(
+                            onClick        = { showDeleteCategory = true },
+                            modifier       = Modifier.size(36.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text("-", style = MaterialTheme.typography.titleLarge)
+                        }
                     }
                 }
             }
         }
 
-        if (selectedUpdaterId != null) {
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { showDatePicker = true }) {
-                    Text(pickedDate?.toString() ?: "Pick Date")
-                }
-                Button(onClick = { /* TODO: set last updated */ }) {
-                    Text("Set Date")
-                }
-            }
+        // Optional date‐picker stub
+        if (showDatePicker) {
+            DatePickerDialog(
+                initialDate     = pickedDate ?: LocalDate.now(),
+                onDateSelected  = { pickedDate = it; showDatePicker = false },
+                onDismissRequest= { showDatePicker = false }
+            )
         }
     }
 
-    // ── Add Buyer Dialog ───────────────────────────────────
-    if (showAddDialog) {
+    // ── Dialog invocations ────────────────────────────────
+    if (showAddBuyer) {
         AddBuyerDialog(
-            onDismiss = { showAddDialog = false },
+            onDismiss = { showAddBuyer = false },
             onSubmit  = { buyer ->
                 buyersRef.push().setValue(buyer)
-                showAddDialog = false
+                showAddBuyer = false
             }
         )
     }
-
-    // ── Edit Buyer Dialog ──────────────────────────────────
-    if (showEditDialog && selectedBuyerId != null) {
+    if (showEditBuyer && selectedBuyerId != null) {
         EditBuyerDialog(
-            onDismiss = { showEditDialog = false },
-            onSubmit  = { updates: Map<String, Any> ->
-                // only keep non-blank String fields
+            onDismiss = { showEditBuyer = false },
+            onSubmit  = { updates ->
                 val filtered = updates
                     .filterValues { v -> v is String && (v).isNotBlank() }
-
+                    .mapValues    { it.value}
                 if (filtered.isNotEmpty()) {
-                    buyersRef
-                    .child(selectedBuyerId!!)
-                    .updateChildren(filtered)
-                    }
-                showEditDialog = false
+                    buyersRef.child(selectedBuyerId!!).updateChildren(filtered)
                 }
-            )
-        }
-
-    // ── DatePicker stub ───────────────────────────────────
-    if (showDatePicker) {
-        DatePickerDialog(
-            initialDate     = pickedDate ?: LocalDate.now(),
-            onDateSelected  = {
-                pickedDate    = it
-                showDatePicker = false
-            },
-            onDismissRequest= { showDatePicker = false }
+                showEditBuyer = false
+            }
+        )
+    }
+    if (showAddCategory) {
+        AddCategoryDialog(
+            onDismiss = { showAddCategory = false },
+            onSubmit  = { name ->
+                categoriesRef.child(name).setValue(true)
+                showAddCategory = false
+            }
+        )
+    }
+    if (showDeleteCategory) {
+        DeleteCategoryDialog(
+            categories = categories,
+            onDismiss  = { showDeleteCategory = false },
+            onSubmit   = { name ->
+                categoriesRef.child(name).removeValue()
+                showDeleteCategory = false
+            }
         )
     }
 }
 
-// Make DatePickerDialog public so it resolves from above
+// Public stub so the call resolves
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun DatePickerDialog(
@@ -331,14 +331,10 @@ fun DatePickerDialog(
         title   = { Text("Select Date") },
         text    = { /* TODO: date-picker UI */ },
         confirmButton = {
-            TextButton(onClick = { onDateSelected(initialDate) }) {
-                Text("OK")
-            }
+            TextButton(onClick = { onDateSelected(initialDate) }) { Text("OK") }
         },
         dismissButton = {
-            TextButton(onClick = onDismissRequest) {
-                Text("Cancel")
-            }
+            TextButton(onClick = onDismissRequest) { Text("Cancel") }
         }
     )
 }
