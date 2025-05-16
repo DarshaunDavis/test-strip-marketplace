@@ -1,15 +1,19 @@
-// AdminActionsTab.kt
 package com.lislal.teststripmarketplace.ui.admin
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.google.firebase.database.*
 import java.time.LocalDate
@@ -78,60 +82,108 @@ fun AdminActionsTab() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        // ── Buyers ───────────────────────────────────────
-        Text("Manage Buyers", style = MaterialTheme.typography.titleMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ExposedDropdownMenuBox(
-                expanded = buyerExpanded,
-                onExpandedChange = { buyerExpanded = !buyerExpanded }
+        Spacer(Modifier.height(16.dp)) // extra space below the tabs
+
+        // ── Manage Buyers ─────────────────────────────────────
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(
+                    BorderStroke(1.dp, MaterialTheme.colorScheme.onSurfaceVariant),
+                    shape = RectangleShape
+                ),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedTextField(
-                    value = buyers.firstOrNull { it.first == selectedBuyerId }?.second
-                        ?: if (buyers.isEmpty()) "Loading buyers…" else "Select Buyer",
-                    onValueChange = {},
-                    readOnly = true,
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(buyerExpanded) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                Text(
+                    "Manage Buyers",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
                 )
-                ExposedDropdownMenu(
-                    expanded = buyerExpanded,
-                    onDismissRequest = { buyerExpanded = false }
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.Top
                 ) {
-                    buyers.forEach { (id, name) ->
-                        DropdownMenuItem(
-                            text = { Text(name) },
-                            onClick = {
-                                selectedBuyerId = id
-                                buyerExpanded    = false
+                    // ── Edit Buyer ─────────────────
+                    Column(Modifier.weight(1f)) {
+                        Text("Edit Buyer", style = MaterialTheme.typography.labelLarge)
+                        Spacer(Modifier.height(4.dp))
+                        ExposedDropdownMenuBox(
+                            expanded = buyerExpanded,
+                            onExpandedChange = { buyerExpanded = !buyerExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = buyers.firstOrNull { it.first == selectedBuyerId }?.second
+                                    ?: if (buyers.isEmpty()) "Loading buyers…" else "Select Buyer",
+                                onValueChange = {},
+                                readOnly = true,
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(buyerExpanded)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                            )
+                            ExposedDropdownMenu(
+                                expanded = buyerExpanded,
+                                onDismissRequest = { buyerExpanded = false }
+                            ) {
+                                buyers.forEach { (id, name) ->
+                                    DropdownMenuItem(
+                                        text = { Text(name) },
+                                        onClick = {
+                                            selectedBuyerId = id
+                                            buyerExpanded    = false
+                                        }
+                                    )
+                                }
                             }
-                        )
+                        }
+                    }
+
+                    // ── Add Buyer ──────────────────
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Add Buyer", style = MaterialTheme.typography.labelLarge)
+                        Spacer(Modifier.height(4.dp))
+                        Button(
+                            onClick = { showAddDialog = true },
+                            modifier = Modifier.size(36.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text("+", style = MaterialTheme.typography.titleLarge)
+                        }
                     }
                 }
             }
-            Button(onClick = { showAddDialog = true }) {
-                Text("Add Buyer")
-            }
         }
+
         selectedBuyerId?.let { id ->
             val name = buyers.firstOrNull { it.first == id }?.second.orEmpty()
             Text(
                 "Editing: $name",
                 Modifier
                     .clickable { /* TODO: EditBuyerDialog(id) */ }
-                    .padding(8.dp),
+                    .padding(start = 8.dp),
                 style = MaterialTheme.typography.bodyLarge
             )
         }
 
-        // ── Categories ───────────────────────────────────
+        // ── Categories ───────────────────────────────────────
         Text("Categories", style = MaterialTheme.typography.titleMedium)
         categories.forEach { cat ->
             Text(cat, style = MaterialTheme.typography.bodyMedium)
         }
 
-        // ── Last Updated Dates ───────────────────────────
+        // ── Last Updated Dates ───────────────────────────────
         Text("Set Last Updated Date", style = MaterialTheme.typography.titleMedium)
         ExposedDropdownMenuBox(
             expanded = categoryExpanded,
@@ -201,16 +253,14 @@ fun AdminActionsTab() {
                 Button(onClick = { showDatePicker = true }) {
                     Text(pickedDate?.toString() ?: "Pick Date")
                 }
-                Button(onClick = {
-                    /* TODO: save lastUpdated[selectedCategory] = pickedDate by selectedUpdaterId */
-                }) {
+                Button(onClick = { /* TODO */ }) {
                     Text("Set Date")
                 }
             }
         }
     }
 
-    // add-buyer dialog
+    // ── Add Buyer Dialog ───────────────────────────────────
     if (showAddDialog) {
         AddBuyerDialog(
             onDismiss = { showAddDialog = false },
@@ -221,11 +271,11 @@ fun AdminActionsTab() {
         )
     }
 
-    // date-picker stub
+    // ── DatePicker ────────────────────────────────────────
     if (showDatePicker) {
         DatePickerDialog(
-            initialDate     = pickedDate ?: LocalDate.now(),
-            onDateSelected  = {
+            initialDate    = pickedDate ?: LocalDate.now(),
+            onDateSelected = {
                 pickedDate    = it
                 showDatePicker = false
             },
