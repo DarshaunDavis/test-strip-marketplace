@@ -1,5 +1,7 @@
 package com.lislal.teststripmarketplace.ui.admin
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Tab
@@ -10,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lislal.teststripmarketplace.viewmodel.AdminViewModel
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun AdminScreen(
     adminViewModel: AdminViewModel = viewModel()
@@ -30,7 +33,7 @@ fun AdminScreen(
 
         when (selectedTab) {
             0 -> UsersTab(adminViewModel)
-            1 -> ProductsTab(adminViewModel)
+            1 -> ProductsTab()
             2 -> AdminActionsTab()
         }
     }
