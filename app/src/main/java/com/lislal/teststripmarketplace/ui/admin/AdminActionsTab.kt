@@ -217,10 +217,7 @@ fun AdminActionsTab() {
                     textAlign = TextAlign.Center
                 )
 
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     // Category list
                     Column(
                         Modifier
