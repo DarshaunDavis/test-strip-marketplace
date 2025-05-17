@@ -1,4 +1,3 @@
-
 package com.lislal.teststripmarketplace.ui.admin
 
 import android.os.Build
@@ -46,10 +45,27 @@ fun ProductsTab() {
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
+        // ── Header and Add Button ──
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Manage Products", style = MaterialTheme.typography.titleLarge)
+            Button(onClick = {
+                // TODO: Add product logic will be added later
+            }) {
+                Text("Add")
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(products) { product ->
                 Card(
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
                         .clickable { selectedProduct = product },
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
@@ -69,7 +85,12 @@ fun ProductsTab() {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     prod.prices.forEachIndexed { index, price ->
                         Row(
-                            Modifier.fillMaxWidth().clickable { editingIndex = index; overrideInput = price.toString() },
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    editingIndex = index
+                                    overrideInput = price.toString()
+                                },
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text("Month ${index + 1}: $${price}", Modifier.padding(8.dp))
@@ -79,7 +100,9 @@ fun ProductsTab() {
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { selectedProduct = null }) { Text("Close") }
+                TextButton(onClick = { selectedProduct = null }) {
+                    Text("Close")
+                }
             }
         )
     }
@@ -108,10 +131,14 @@ fun ProductsTab() {
                         selectedProduct!!.prices = selectedProduct!!.prices.toMutableList().apply { set(idx, newVal) }
                         editingIndex = null
                     }
-                }) { Text("Save") }
+                }) {
+                    Text("Save")
+                }
             },
             dismissButton = {
-                TextButton(onClick = { editingIndex = null }) { Text("Cancel") }
+                TextButton(onClick = { editingIndex = null }) {
+                    Text("Cancel")
+                }
             }
         )
     }
