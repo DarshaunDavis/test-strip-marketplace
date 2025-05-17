@@ -1,4 +1,3 @@
-// AdminActionsTab.kt
 package com.lislal.teststripmarketplace.ui.admin
 
 import android.os.Build
