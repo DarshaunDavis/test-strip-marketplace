@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,16 +47,13 @@ fun ProductsTab() {
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        // ── Header and Add Button ──
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Manage Products", style = MaterialTheme.typography.titleLarge)
-            Button(onClick = {
-                // TODO: Add product logic will be added later
-            }) {
+            Button(onClick = { /* TODO: Add functionality */ }) {
                 Text("Add")
             }
         }
@@ -64,13 +63,31 @@ fun ProductsTab() {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(products) { product ->
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { selectedProduct = product },
+                    modifier = Modifier.fillMaxWidth(),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(text = product.description, style = MaterialTheme.typography.titleMedium)
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = product.description,
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { selectedProduct = product }
+                        )
+
+                        IconButton(onClick = {
+                            FirebaseDatabase.getInstance()
+                                .getReference("barcodes/${product.category}/${product.barcode}")
+                                .removeValue()
+                        }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete")
+                        }
                     }
                 }
             }
