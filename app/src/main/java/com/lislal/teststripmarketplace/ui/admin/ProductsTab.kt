@@ -2,6 +2,7 @@ package com.lislal.teststripmarketplace.ui.admin
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,14 +10,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.google.firebase.database.*
+import com.lislal.teststripmarketplace.R
 import com.lislal.teststripmarketplace.data.Product
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -26,17 +28,20 @@ fun ProductsTab() {
     val products = remember { mutableStateListOf<Product>() }
 
     var selectedProduct by remember { mutableStateOf<Product?>(null) }
-    var editingIndex    by remember { mutableStateOf<Int?>(null) }
-    var overrideInput   by remember { mutableStateOf("") }
+    var editingIndex by remember { mutableStateOf<Int?>(null) }
+    var overrideInput by remember { mutableStateOf("") }
 
-    // Load all barcodes
+    // Placeholder dates (normally would be calculated)
+    val dates = listOf("04/25", "05/25", "06/25", "07/25", "08/25", "09/25", "10/25", "11/25", "12/25", "01/26")
+
+    // Load products
     LaunchedEffect(Unit) {
         dbRef.get().addOnSuccessListener { snapshot ->
             products.clear()
             snapshot.children.forEach { categorySnap ->
                 val category = categorySnap.key ?: return@forEach
                 categorySnap.children.forEach { barcodeSnap ->
-                    val barcode     = barcodeSnap.key ?: return@forEach
+                    val barcode = barcodeSnap.key ?: return@forEach
                     val description = barcodeSnap.child("description").getValue(String::class.java) ?: ""
                     val prices = (1..10).map { i ->
                         barcodeSnap.child("Default").child("price$i").getValue(Int::class.java) ?: 0
@@ -48,21 +53,19 @@ fun ProductsTab() {
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        // ── Header + Add Button ────────────────────────────────
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Manage Products", style = MaterialTheme.typography.titleLarge)
-            Button(onClick = { /* TODO: Add product dialog */ }) {
+            Button(onClick = { /* TODO: Add product logic */ }) {
                 Text("Add")
             }
         }
 
         Spacer(Modifier.height(16.dp))
 
-        // ── Product List ───────────────────────────────────────
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(products) { product ->
                 Card(
@@ -83,7 +86,6 @@ fun ProductsTab() {
                                 .weight(1f)
                                 .clickable { selectedProduct = product }
                         )
-
                         IconButton(onClick = {
                             FirebaseDatabase.getInstance()
                                 .getReference("barcodes/${product.category}/${product.barcode}")
@@ -97,75 +99,84 @@ fun ProductsTab() {
         }
     }
 
-    // ── Price Dialog ────────────────────────────────────────
     selectedProduct?.let { prod ->
         AlertDialog(
             onDismissRequest = { selectedProduct = null },
-            title = { Text(prod.description) },
+            title = {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text(prod.description, style = MaterialTheme.typography.titleLarge)
+                }
+            },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // ── Image and Meta ─────────────────────────────
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Photo,
-                            contentDescription = "Product Image",
-                            modifier = Modifier
-                                .size(64.dp)
-                                .clickable {
-                                    // TODO: launch image picker
-                                }
-                        )
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                "Category: ${prod.category}",
-                                modifier = Modifier.clickable {
-                                    // TODO: Edit category
-                                },
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            Text(
-                                "Buyer: [click to assign]",
-                                modifier = Modifier.clickable {
-                                    // TODO: Edit buyer
-                                },
-                                style = MaterialTheme.typography.bodyLarge
-                            )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.fmsalightlogo),
+                        contentDescription = "Product Image",
+                        modifier = Modifier
+                            .height(80.dp)
+                            .fillMaxWidth()
+                            .clickable { /* TODO: Upload new image */ }
+                    )
+                    Text(
+                        "Category: ${prod.category}",
+                        modifier = Modifier.clickable { /* TODO: Edit category */ },
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Text(
+                        "Buyer: Default",
+                        modifier = Modifier.clickable { /* TODO: Edit buyer */ },
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+                        dates.take(5).forEach { date ->
+                            Text(date, style = MaterialTheme.typography.bodySmall)
                         }
                     }
-
-                    HorizontalDivider()
-
-                    // ── Price List ────────────────────────────────
-                    prod.prices.forEachIndexed { index, price ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable {
+                    Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+                        prod.prices.take(5).forEachIndexed { index, price ->
+                            Text(
+                                text = "$$price",
+                                modifier = Modifier.clickable {
                                     editingIndex = index
                                     overrideInput = price.toString()
                                 }
-                                .padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Month ${index + 1}: $${price}")
+                            )
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+                        dates.drop(5).forEach { date ->
+                            Text(date, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+                        prod.prices.drop(5).forEachIndexed { i, price ->
+                            val index = i + 5
+                            Text(
+                                text = "$$price",
+                                modifier = Modifier.clickable {
+                                    editingIndex = index
+                                    overrideInput = price.toString()
+                                }
+                            )
                         }
                     }
                 }
             },
-            confirmButton = {},
-            dismissButton = {
+            confirmButton = {
                 TextButton(onClick = { selectedProduct = null }) {
-                    Text("Close")
+                    Text("OK")
                 }
             }
         )
     }
 
-    // ── Edit Price Dialog ───────────────────────────────────
     editingIndex?.let { idx ->
         AlertDialog(
             onDismissRequest = { editingIndex = null },
@@ -187,13 +198,10 @@ fun ProductsTab() {
                     overrideInput.toIntOrNull()?.let { newVal ->
                         val path = "barcodes/${selectedProduct!!.category}/${selectedProduct!!.barcode}/Default/price${idx + 1}"
                         FirebaseDatabase.getInstance().getReference(path).setValue(newVal)
-                        selectedProduct!!.prices =
-                            selectedProduct!!.prices.toMutableList().apply { set(idx, newVal) }
+                        selectedProduct!!.prices = selectedProduct!!.prices.toMutableList().apply { set(idx, newVal) }
                         editingIndex = null
                     }
-                }) {
-                    Text("Save")
-                }
+                }) { Text("Save") }
             },
             dismissButton = {
                 TextButton(onClick = { editingIndex = null }) {
