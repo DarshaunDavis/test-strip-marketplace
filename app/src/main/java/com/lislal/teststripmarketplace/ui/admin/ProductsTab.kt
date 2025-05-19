@@ -14,82 +14,115 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.google.firebase.database.*
+import com.google.firebase.database.FirebaseDatabase
 import com.lislal.teststripmarketplace.R
 import com.lislal.teststripmarketplace.data.Product
+import java.text.SimpleDateFormat
+import java.util.*
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun ProductsTab() {
-    val dbRef = FirebaseDatabase.getInstance().getReference("barcodes")
-    val products = remember { mutableStateListOf<Product>() }
+    // 1) Firebase refs
+    val productsRef    = remember { FirebaseDatabase.getInstance().getReference("products") }
+    val lastUpdatedRef = remember { FirebaseDatabase.getInstance().getReference("last updated") }
+
+    // 2) State holders
+    val products        = remember { mutableStateListOf<Product>() }
+    val categoryLastMap = remember { mutableStateMapOf<String, String>() }
+    val buyerMap        = remember { mutableStateMapOf<String, String>() }
 
     var selectedProduct by remember { mutableStateOf<Product?>(null) }
-    var editingIndex by remember { mutableStateOf<Int?>(null) }
-    var overrideInput by remember { mutableStateOf("") }
+    var editingIndex    by remember { mutableStateOf<Int?>(null) }
+    var overrideInput   by remember { mutableStateOf("") }
 
-    // Placeholder dates (normally would be calculated)
-    val dates = listOf("04/25", "05/25", "06/25", "07/25", "08/25", "09/25", "10/25", "11/25", "12/25", "01/26")
-
-    // Load products
-    LaunchedEffect(Unit) {
-        dbRef.get().addOnSuccessListener { snapshot ->
-            products.clear()
-            snapshot.children.forEach { categorySnap ->
-                val category = categorySnap.key ?: return@forEach
-                categorySnap.children.forEach { barcodeSnap ->
-                    val barcode = barcodeSnap.key ?: return@forEach
-                    val description = barcodeSnap.child("description").getValue(String::class.java) ?: ""
-                    val prices = (1..10).map { i ->
-                        barcodeSnap.child("Default").child("price$i").getValue(Int::class.java) ?: 0
+    // 3) Load “last updated” once
+    LaunchedEffect(lastUpdatedRef) {
+        lastUpdatedRef.get().addOnSuccessListener { snap ->
+            snap.children.forEach { catSnap ->
+                catSnap.key?.trim()?.let { cat ->
+                    catSnap.getValue(String::class.java)?.trim()?.let { date ->
+                        categoryLastMap[cat] = date
                     }
-                    products += Product(barcode, category, description, prices)
                 }
             }
         }
     }
 
+    // 4) Load products once (and remember which buyer key each one uses)
+    LaunchedEffect(productsRef) {
+        productsRef.get().addOnSuccessListener { snap ->
+            products.clear()
+            buyerMap.clear()
+            snap.children.forEach { prodSnap ->
+                val barcode     = prodSnap.key ?: return@forEach
+                val category    = prodSnap.child("category")
+                    .getValue(String::class.java).orEmpty().trim()
+                val description = prodSnap.child("description")
+                    .getValue(String::class.java).orEmpty()
+                val pricesNode  = prodSnap.child("prices")
+
+                // pick the first buyer sub‐node (e.g. "Strip Flip") or default
+                val buyerKey = pricesNode.children.firstOrNull()?.key.orEmpty()
+                buyerMap[barcode] = buyerKey
+
+                // parse price1…price10 under that buyer
+                val prices = (1..10).map { i ->
+                    pricesNode
+                        .child(buyerKey)
+                        .child("price$i")
+                        .value
+                        ?.toString()
+                        ?.toIntOrNull()
+                        ?: 0
+                }
+
+                products += Product(barcode, category, description, prices)
+            }
+        }
+    }
+
+    // 5) Main UI
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment     = Alignment.CenterVertically
         ) {
             Text("Manage Products", style = MaterialTheme.typography.titleLarge)
-            Button(onClick = { /* TODO: Add product logic */ }) {
+            Button(onClick = { /* TODO: add product */ }) {
                 Text("Add")
             }
         }
-
         Spacer(Modifier.height(16.dp))
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(products) { product ->
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    Modifier.fillMaxWidth(),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Row(
                         Modifier
                             .fillMaxWidth()
                             .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalAlignment     = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = product.description,
-                            style = MaterialTheme.typography.titleMedium,
+                            product.description,
+                            style    = MaterialTheme.typography.titleMedium,
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable { selectedProduct = product }
                         )
                         IconButton(onClick = {
-                            FirebaseDatabase.getInstance()
-                                .getReference("barcodes/${product.category}/${product.barcode}")
-                                .removeValue()
+                            productsRef.child(product.barcode).removeValue()
                         }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete")
                         }
@@ -99,69 +132,82 @@ fun ProductsTab() {
         }
     }
 
+    // 6) Price + Date Dialog
     selectedProduct?.let { prod ->
+        val buyerKey   = buyerMap[prod.barcode].orEmpty()
+        val rawDate    = categoryLastMap[prod.category]
+        val dateLabels = getDateLabels(rawDate, prod.prices.size)
+
         AlertDialog(
             onDismissRequest = { selectedProduct = null },
             title = {
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text(prod.description, style = MaterialTheme.typography.titleLarge)
-                }
+                Text(
+                    prod.description,
+                    style     = MaterialTheme.typography.titleMedium,
+                    modifier  = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Image(
-                        painter = painterResource(R.drawable.fmsalightlogo),
+                        painter            = painterResource(id = R.drawable.fmsalightlogo),
                         contentDescription = "Product Image",
-                        modifier = Modifier
-                            .height(80.dp)
-                            .fillMaxWidth()
-                            .clickable { /* TODO: Upload new image */ }
+                        modifier           = Modifier
+                            .size(100.dp)
+                            .align(Alignment.CenterHorizontally),
+                        contentScale       = ContentScale.Crop
                     )
                     Text(
                         "Category: ${prod.category}",
-                        modifier = Modifier.clickable { /* TODO: Edit category */ },
-                        style = MaterialTheme.typography.bodyMedium
+                        modifier  = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
                     )
-
                     Text(
-                        "Buyer: Default",
-                        modifier = Modifier.clickable { /* TODO: Edit buyer */ },
-                        style = MaterialTheme.typography.bodyMedium
+                        "Buyer: $buyerKey",
+                        modifier  = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
                     )
 
-                    Spacer(Modifier.height(12.dp))
-
-                    Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                        dates.take(5).forEach { date ->
-                            Text(date, style = MaterialTheme.typography.bodySmall)
-                        }
+                    // top 5 months
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        dateLabels.take(5).forEach { Text(it) }
                     }
-                    Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                        prod.prices.take(5).forEachIndexed { index, price ->
+                    // top 5 prices
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        prod.prices.take(5).forEachIndexed { i, price ->
                             Text(
-                                text = "$$price",
-                                modifier = Modifier.clickable {
-                                    editingIndex = index
+                                "$$price",
+                                Modifier.clickable {
+                                    editingIndex  = i
                                     overrideInput = price.toString()
                                 }
                             )
                         }
                     }
-                    Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                        dates.drop(5).forEach { date ->
-                            Text(date, style = MaterialTheme.typography.bodySmall)
-                        }
+                    // bottom 5 months
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        dateLabels.drop(5).forEach { Text(it) }
                     }
-                    Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+                    // bottom 5 prices
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
                         prod.prices.drop(5).forEachIndexed { i, price ->
-                            val index = i + 5
                             Text(
-                                text = "$$price",
-                                modifier = Modifier.clickable {
-                                    editingIndex = index
+                                "$$price",
+                                Modifier.clickable {
+                                    editingIndex  = i + 5
                                     overrideInput = price.toString()
                                 }
                             )
@@ -177,31 +223,39 @@ fun ProductsTab() {
         )
     }
 
+    // 7) Override Price Dialog
     editingIndex?.let { idx ->
         AlertDialog(
             onDismissRequest = { editingIndex = null },
             title = { Text("Override Price") },
-            text = {
+            text  = {
                 Column {
                     Text("Enter new price for month #${idx + 1}")
                     OutlinedTextField(
-                        value = overrideInput,
-                        onValueChange = { overrideInput = it.filter(Char::isDigit) },
+                        value           = overrideInput,
+                        onValueChange   = { overrideInput = it.filter(Char::isDigit) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        singleLine      = true,
+                        modifier        = Modifier.fillMaxWidth()
                     )
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     overrideInput.toIntOrNull()?.let { newVal ->
-                        val path = "barcodes/${selectedProduct!!.category}/${selectedProduct!!.barcode}/Default/price${idx + 1}"
-                        FirebaseDatabase.getInstance().getReference(path).setValue(newVal)
-                        selectedProduct!!.prices = selectedProduct!!.prices.toMutableList().apply { set(idx, newVal) }
-                        editingIndex = null
+                        val buyerKey = buyerMap[selectedProduct!!.barcode].orEmpty()
+                        val path     = "products/${selectedProduct!!.barcode}/prices/$buyerKey/price${idx + 1}"
+                        FirebaseDatabase.getInstance()
+                            .getReference(path)
+                            .setValue(newVal)
+                        // update local state
+                        selectedProduct!!.prices =
+                            selectedProduct!!.prices.toMutableList().apply { set(idx, newVal) }
                     }
-                }) { Text("Save") }
+                    editingIndex = null
+                }) {
+                    Text("Save")
+                }
             },
             dismissButton = {
                 TextButton(onClick = { editingIndex = null }) {
@@ -209,5 +263,28 @@ fun ProductsTab() {
                 }
             }
         )
+    }
+}
+
+/**
+ * Exactly your Flipping‐app logic:
+ * parses M/d/yyyy → builds 10 labels: baseDate+11mo … baseDate+2mo (MM/yy)
+ */
+fun getDateLabels(lastUpdated: String?, size: Int): List<String> {
+    val inputFmt  = SimpleDateFormat("M/d/yyyy", Locale.US)
+    val outputFmt = SimpleDateFormat("MM/yy",   Locale.US)
+
+    val baseDate: Date = try {
+        inputFmt.parse(lastUpdated ?: "") ?: return List(size) { "N/A" }
+    } catch (_: Exception) {
+        return List(size) { "N/A" }
+    }
+
+    return List(size) { i ->
+        Calendar.getInstance().apply {
+            time = baseDate
+            // i=0 → +11 months; i=9 → +2 months
+            add(Calendar.MONTH, (size + 1) - i)
+        }.let { outputFmt.format(it.time) }
     }
 }
