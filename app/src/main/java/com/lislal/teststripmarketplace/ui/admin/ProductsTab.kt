@@ -2,7 +2,6 @@ package com.lislal.teststripmarketplace.ui.admin
 
 import android.os.Build
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,13 +13,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.google.firebase.database.FirebaseDatabase
-import com.lislal.teststripmarketplace.R
 import com.lislal.teststripmarketplace.data.Product
 import java.text.SimpleDateFormat
 import java.util.*
@@ -132,98 +127,26 @@ fun ProductsTab() {
         }
     }
 
-    // 6) Price + Date Dialog
+    // 6) Price + Date + Image Dialog (delegated)
     selectedProduct?.let { prod ->
         val buyerKey   = buyerMap[prod.barcode].orEmpty()
         val rawDate    = categoryLastMap[prod.category]
         val dateLabels = getDateLabels(rawDate, prod.prices.size)
 
-        AlertDialog(
-            onDismissRequest = { selectedProduct = null },
-            title = {
-                Text(
-                    prod.description,
-                    style     = MaterialTheme.typography.titleMedium,
-                    modifier  = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
+        PriceDialog(
+            product      = prod,
+            buyerKey     = buyerKey,
+            dateLabels   = dateLabels,
+            onImageClick = { /* TODO: launch image picker */ },
+            onPriceClick = { idx ->
+                editingIndex  = idx
+                overrideInput = prod.prices[idx].toString()
             },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Image(
-                        painter            = painterResource(id = R.drawable.fmsalightlogo),
-                        contentDescription = "Product Image",
-                        modifier           = Modifier
-                            .size(100.dp)
-                            .align(Alignment.CenterHorizontally),
-                        contentScale       = ContentScale.Crop
-                    )
-                    Text(
-                        "Category: ${prod.category}",
-                        modifier  = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        "Buyer: $buyerKey",
-                        modifier  = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
-
-                    // top 5 months
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        dateLabels.take(5).forEach { Text(it) }
-                    }
-                    // top 5 prices
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        prod.prices.take(5).forEachIndexed { i, price ->
-                            Text(
-                                "$$price",
-                                Modifier.clickable {
-                                    editingIndex  = i
-                                    overrideInput = price.toString()
-                                }
-                            )
-                        }
-                    }
-                    // bottom 5 months
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        dateLabels.drop(5).forEach { Text(it) }
-                    }
-                    // bottom 5 prices
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        prod.prices.drop(5).forEachIndexed { i, price ->
-                            Text(
-                                "$$price",
-                                Modifier.clickable {
-                                    editingIndex  = i + 5
-                                    overrideInput = price.toString()
-                                }
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { selectedProduct = null }) {
-                    Text("OK")
-                }
-            }
+            onDismiss    = { selectedProduct = null }
         )
     }
 
-    // 7) Override Price Dialog
+    // 7) Override Price Dialog (unchanged)
     editingIndex?.let { idx ->
         AlertDialog(
             onDismissRequest = { editingIndex = null },
@@ -267,7 +190,6 @@ fun ProductsTab() {
 }
 
 /**
- * Exactly your Flipping‐app logic:
  * parses M/d/yyyy → builds 10 labels: baseDate+11mo … baseDate+2mo (MM/yy)
  */
 fun getDateLabels(lastUpdated: String?, size: Int): List<String> {
