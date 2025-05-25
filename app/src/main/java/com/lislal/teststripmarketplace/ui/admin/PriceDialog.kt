@@ -1,9 +1,14 @@
 package com.lislal.teststripmarketplace.ui.admin
 
-import androidx.compose.foundation.Image
+import android.net.Uri
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -11,91 +16,100 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.lislal.teststripmarketplace.R
 import com.lislal.teststripmarketplace.data.Product
 
-/**
- * Shows a product’s image (clickable), category, buyer, a 2×5 grid of dates & prices,
- * and an OK button to dismiss.
- */
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun PriceDialog(
     product: Product,
     buyerKey: String,
     dateLabels: List<String>,
-    onImageClick: () -> Unit,
+    prices: List<Int>,
     onPriceClick: (Int) -> Unit,
+    onImageClick: (Uri) -> Unit,
     onDismiss: () -> Unit
 ) {
+    // launcher to pick a new image from device
+    val pickImageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+        onResult = { uri -> uri?.let(onImageClick) }
+    )
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
                 text      = product.description,
+                style     = MaterialTheme.typography.titleMedium,
                 modifier  = Modifier.fillMaxWidth(),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                // placeholder or will show loaded image later
-                Image(
-                    painter            = painterResource(R.drawable.fmsalightlogo),
-                    contentDescription = "Product Image",
-                    modifier           = Modifier
+                AsyncImage(
+                    model               = product.imageUrl,
+                    contentDescription  = "Product Image",
+                    placeholder         = painterResource(R.drawable.fmsalightlogo),
+                    error               = painterResource(R.drawable.fmsalightlogo),
+                    contentScale        = ContentScale.Crop,
+                    modifier            = Modifier
                         .size(100.dp)
                         .align(Alignment.CenterHorizontally)
-                        .clickable(onClick = onImageClick),
-                    contentScale       = ContentScale.Crop
+                        .clickable { pickImageLauncher.launch("image/*") }
                 )
 
                 Text(
                     "Category: ${product.category}",
                     modifier  = Modifier.fillMaxWidth(),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    textAlign = TextAlign.Center
                 )
                 Text(
                     "Buyer: $buyerKey",
                     modifier  = Modifier.fillMaxWidth(),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    textAlign = TextAlign.Center
                 )
 
-                // top row of dates
+                // top 5 month labels
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     dateLabels.take(5).forEach { Text(it) }
                 }
-                // top row of prices
+                // top 5 prices
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    product.prices.take(5).forEachIndexed { idx, price ->
+                    prices.take(5).forEachIndexed { idx, price ->
                         Text(
-                            text     = "$$price",
+                            text = "$$price",
                             modifier = Modifier.clickable { onPriceClick(idx) }
                         )
                     }
                 }
-                // bottom row of dates
+                // bottom 5 month labels
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     dateLabels.drop(5).forEach { Text(it) }
                 }
-                // bottom row of prices
+                // bottom 5 prices
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    product.prices.drop(5).forEachIndexed { di, price ->
+                    prices.drop(5).forEachIndexed { dropIdx, price ->
+                        val idx = dropIdx + 5
                         Text(
-                            text     = "$$price",
-                            modifier = Modifier.clickable { onPriceClick(di + 5) }
+                            text = "$$price",
+                            modifier = Modifier.clickable { onPriceClick(idx) }
                         )
                     }
                 }

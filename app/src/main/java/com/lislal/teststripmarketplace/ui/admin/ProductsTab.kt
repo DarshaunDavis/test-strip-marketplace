@@ -1,5 +1,6 @@
 package com.lislal.teststripmarketplace.ui.admin
 
+import android.net.Uri
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.clickable
@@ -16,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.storage.FirebaseStorage
 import com.lislal.teststripmarketplace.data.Product
 import java.text.SimpleDateFormat
 import java.util.*
@@ -60,13 +62,14 @@ fun ProductsTab() {
                     .getValue(String::class.java).orEmpty().trim()
                 val description = prodSnap.child("description")
                     .getValue(String::class.java).orEmpty()
-                val pricesNode  = prodSnap.child("prices")
+                // ← NEW: pull any saved imageUrl
+                val imageUrl    = prodSnap.child("imageUrl")
+                    .getValue(String::class.java)
 
-                // pick the first buyer sub‐node (e.g. "Strip Flip") or default
-                val buyerKey = pricesNode.children.firstOrNull()?.key.orEmpty()
+                val pricesNode  = prodSnap.child("prices")
+                val buyerKey    = pricesNode.children.firstOrNull()?.key.orEmpty()
                 buyerMap[barcode] = buyerKey
 
-                // parse price1…price10 under that buyer
                 val prices = (1..10).map { i ->
                     pricesNode
                         .child(buyerKey)
@@ -77,7 +80,14 @@ fun ProductsTab() {
                         ?: 0
                 }
 
-                products += Product(barcode, category, description, prices)
+                // ← PASS imageUrl into your shared Product model
+                products += Product(
+                    barcode     = barcode,
+                    category    = category,
+                    description = description,
+                    prices      = prices,
+                    imageUrl    = imageUrl
+                )
             }
         }
     }
@@ -127,7 +137,7 @@ fun ProductsTab() {
         }
     }
 
-    // 6) Price + Date + Image Dialog (delegated)
+    // 6) Price + Date + Image dialog
     selectedProduct?.let { prod ->
         val buyerKey   = buyerMap[prod.barcode].orEmpty()
         val rawDate    = categoryLastMap[prod.category]
@@ -137,21 +147,24 @@ fun ProductsTab() {
             product      = prod,
             buyerKey     = buyerKey,
             dateLabels   = dateLabels,
-            onImageClick = { /* TODO: launch image picker */ },
+            prices       = prod.prices,
             onPriceClick = { idx ->
                 editingIndex  = idx
                 overrideInput = prod.prices[idx].toString()
+            },
+            onImageClick  = { uri ->
+                uploadImageForProduct(prod.barcode, uri)
             },
             onDismiss    = { selectedProduct = null }
         )
     }
 
-    // 7) Override Price Dialog (unchanged)
+    // 7) Override-price dialog
     editingIndex?.let { idx ->
         AlertDialog(
             onDismissRequest = { editingIndex = null },
-            title = { Text("Override Price") },
-            text  = {
+            title            = { Text("Override Price") },
+            text             = {
                 Column {
                     Text("Enter new price for month #${idx + 1}")
                     OutlinedTextField(
@@ -163,15 +176,14 @@ fun ProductsTab() {
                     )
                 }
             },
-            confirmButton = {
+            confirmButton    = {
                 TextButton(onClick = {
                     overrideInput.toIntOrNull()?.let { newVal ->
-                        val buyerKey = buyerMap[selectedProduct!!.barcode].orEmpty()
-                        val path     = "products/${selectedProduct!!.barcode}/prices/$buyerKey/price${idx + 1}"
+                        val key  = buyerMap[selectedProduct!!.barcode].orEmpty()
+                        val path = "products/${selectedProduct!!.barcode}/prices/$key/price${idx + 1}"
                         FirebaseDatabase.getInstance()
                             .getReference(path)
                             .setValue(newVal)
-                        // update local state
                         selectedProduct!!.prices =
                             selectedProduct!!.prices.toMutableList().apply { set(idx, newVal) }
                     }
@@ -180,7 +192,7 @@ fun ProductsTab() {
                     Text("Save")
                 }
             },
-            dismissButton = {
+            dismissButton    = {
                 TextButton(onClick = { editingIndex = null }) {
                     Text("Cancel")
                 }
@@ -190,23 +202,39 @@ fun ProductsTab() {
 }
 
 /**
- * parses M/d/yyyy → builds 10 labels: baseDate+11mo … baseDate+2mo (MM/yy)
+ * Uploads the picked image URI into Firebase Storage and then
+ * writes its downloadUrl back under products/<barcode>/imageUrl
  */
-fun getDateLabels(lastUpdated: String?, size: Int): List<String> {
-    val inputFmt  = SimpleDateFormat("M/d/yyyy", Locale.US)
-    val outputFmt = SimpleDateFormat("MM/yy",   Locale.US)
+fun uploadImageForProduct(barcode: String, uri: Uri) {
+    val storageRef = FirebaseStorage
+        .getInstance()
+        .getReference("product_images/$barcode.jpg")
 
-    val baseDate: Date = try {
-        inputFmt.parse(lastUpdated ?: "") ?: return List(size) { "N/A" }
+    storageRef.putFile(uri)
+        .continueWithTask { task ->
+            if (!task.isSuccessful) throw task.exception!!
+            storageRef.downloadUrl
+        }
+        .addOnSuccessListener { downloadUrl ->
+            FirebaseDatabase.getInstance()
+                .getReference("products/$barcode/imageUrl")
+                .setValue(downloadUrl.toString())
+        }
+}
+
+/** Builds 10 labels (MM/yy) from M/d/yyyy +11mo…+2mo */
+fun getDateLabels(lastUpdated: String?, size: Int): List<String> {
+    val parser  = SimpleDateFormat("M/d/yyyy", Locale.US)
+    val display = SimpleDateFormat("MM/yy",    Locale.US)
+    val base    = try {
+        parser.parse(lastUpdated ?: "") ?: return List(size) { "N/A" }
     } catch (_: Exception) {
         return List(size) { "N/A" }
     }
-
     return List(size) { i ->
         Calendar.getInstance().apply {
-            time = baseDate
-            // i=0 → +11 months; i=9 → +2 months
+            time = base
             add(Calendar.MONTH, (size + 1) - i)
-        }.let { outputFmt.format(it.time) }
+        }.let { display.format(it.time) }
     }
 }

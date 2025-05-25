@@ -61,6 +61,9 @@ dependencies {
     implementation(libs.play.services.ads)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.androidx.material.icons.extended)
+    implementation(libs.firebase.storage.ktx)
+    implementation("io.coil-kt:coil-compose:2.2.2")
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
