@@ -29,16 +29,17 @@ fun ProductsTab() {
     val productsRef    = remember { FirebaseDatabase.getInstance().getReference("products") }
     val lastUpdatedRef = remember { FirebaseDatabase.getInstance().getReference("last updated") }
 
-    // 2) State holders
+    // 2) State
     val products        = remember { mutableStateListOf<Product>() }
     val categoryLastMap = remember { mutableStateMapOf<String, String>() }
     val buyerMap        = remember { mutableStateMapOf<String, String>() }
+    val buyerListMap    = remember { mutableStateMapOf<String, List<String>>() }
 
     var selectedProduct by remember { mutableStateOf<Product?>(null) }
     var editingIndex    by remember { mutableStateOf<Int?>(null) }
     var overrideInput   by remember { mutableStateOf("") }
 
-    // 3) Load “last updated” once
+    // 3) Load last‐updated dates
     LaunchedEffect(lastUpdatedRef) {
         lastUpdatedRef.get().addOnSuccessListener { snap ->
             snap.children.forEach { catSnap ->
@@ -51,25 +52,32 @@ fun ProductsTab() {
         }
     }
 
-    // 4) Load products once (and remember which buyer key each one uses)
+    // 4) Load all products (+ their buyer‐keys + imageUrl)
     LaunchedEffect(productsRef) {
         productsRef.get().addOnSuccessListener { snap ->
             products.clear()
             buyerMap.clear()
+            buyerListMap.clear()
+
             snap.children.forEach { prodSnap ->
                 val barcode     = prodSnap.key ?: return@forEach
                 val category    = prodSnap.child("category")
                     .getValue(String::class.java).orEmpty().trim()
                 val description = prodSnap.child("description")
                     .getValue(String::class.java).orEmpty()
-                // ← NEW: pull any saved imageUrl
                 val imageUrl    = prodSnap.child("imageUrl")
                     .getValue(String::class.java)
 
-                val pricesNode  = prodSnap.child("prices")
-                val buyerKey    = pricesNode.children.firstOrNull()?.key.orEmpty()
+                // gather all buyer‐keys under “prices”
+                val pricesNode = prodSnap.child("prices")
+                val buyers     = pricesNode.children.mapNotNull { it.key }
+                buyerListMap[barcode] = buyers
+
+                // pick a default buyer
+                val buyerKey = buyers.firstOrNull().orEmpty()
                 buyerMap[barcode] = buyerKey
 
+                // load price1…price10 for that buyer
                 val prices = (1..10).map { i ->
                     pricesNode
                         .child(buyerKey)
@@ -80,7 +88,6 @@ fun ProductsTab() {
                         ?: 0
                 }
 
-                // ← PASS imageUrl into your shared Product model
                 products += Product(
                     barcode     = barcode,
                     category    = category,
@@ -92,7 +99,7 @@ fun ProductsTab() {
         }
     }
 
-    // 5) Main UI
+    // 5) Main list UI
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Row(
             Modifier.fillMaxWidth(),
@@ -100,18 +107,13 @@ fun ProductsTab() {
             verticalAlignment     = Alignment.CenterVertically
         ) {
             Text("Manage Products", style = MaterialTheme.typography.titleLarge)
-            Button(onClick = { /* TODO: add product */ }) {
-                Text("Add")
-            }
+            Button(onClick = { /* TODO: add product */ }) { Text("Add") }
         }
         Spacer(Modifier.height(16.dp))
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(products) { product ->
-                Card(
-                    Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
+                Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(2.dp)) {
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -137,29 +139,34 @@ fun ProductsTab() {
         }
     }
 
-    // 6) Price + Date + Image dialog
+    // 6) Price + Date + Image + Buyer dialog
     selectedProduct?.let { prod ->
-        val buyerKey   = buyerMap[prod.barcode].orEmpty()
-        val rawDate    = categoryLastMap[prod.category]
-        val dateLabels = getDateLabels(rawDate, prod.prices.size)
-
         PriceDialog(
-            product      = prod,
-            buyerKey     = buyerKey,
-            dateLabels   = dateLabels,
-            prices       = prod.prices,
-            onPriceClick = { idx ->
+            product         = prod,
+            buyerKey        = buyerMap[prod.barcode].orEmpty(),
+            buyers          = buyerListMap[prod.barcode] ?: emptyList(),
+            dateLabels      = getDateLabels(categoryLastMap[prod.category], prod.prices.size),
+            prices          = prod.prices,
+            onPriceClick    = { idx ->
                 editingIndex  = idx
                 overrideInput = prod.prices[idx].toString()
             },
-            onImageClick  = { uri ->
+            onImageClick    = { uri ->
                 uploadImageForProduct(prod.barcode, uri)
             },
-            onDismiss    = { selectedProduct = null }
+            onBuyerSelected = { newBuyer ->
+                // switch current buyer
+                buyerMap[prod.barcode] = newBuyer
+                // TODO: reload prod.prices for newBuyer
+            },
+            onAddBuyer      = {
+                // TODO: launch “add new buyer” flow
+            },
+            onDismiss       = { selectedProduct = null }
         )
     }
 
-    // 7) Override-price dialog
+    // 7) Override‐price dialog
     editingIndex?.let { idx ->
         AlertDialog(
             onDismissRequest = { editingIndex = null },
@@ -176,11 +183,11 @@ fun ProductsTab() {
                     )
                 }
             },
-            confirmButton    = {
+            confirmButton = {
                 TextButton(onClick = {
                     overrideInput.toIntOrNull()?.let { newVal ->
-                        val key  = buyerMap[selectedProduct!!.barcode].orEmpty()
-                        val path = "products/${selectedProduct!!.barcode}/prices/$key/price${idx + 1}"
+                        val buyerKey = buyerMap[selectedProduct!!.barcode].orEmpty()
+                        val path     = "products/${selectedProduct!!.barcode}/prices/$buyerKey/price${idx + 1}"
                         FirebaseDatabase.getInstance()
                             .getReference(path)
                             .setValue(newVal)
@@ -188,23 +195,16 @@ fun ProductsTab() {
                             selectedProduct!!.prices.toMutableList().apply { set(idx, newVal) }
                     }
                     editingIndex = null
-                }) {
-                    Text("Save")
-                }
+                }) { Text("Save") }
             },
-            dismissButton    = {
-                TextButton(onClick = { editingIndex = null }) {
-                    Text("Cancel")
-                }
+            dismissButton = {
+                TextButton(onClick = { editingIndex = null }) { Text("Cancel") }
             }
         )
     }
 }
 
-/**
- * Uploads the picked image URI into Firebase Storage and then
- * writes its downloadUrl back under products/<barcode>/imageUrl
- */
+// Uploads picked image → Firebase Storage → writes its URL back under products/<barcode>/imageUrl
 fun uploadImageForProduct(barcode: String, uri: Uri) {
     val storageRef = FirebaseStorage
         .getInstance()
@@ -217,12 +217,14 @@ fun uploadImageForProduct(barcode: String, uri: Uri) {
         }
         .addOnSuccessListener { downloadUrl ->
             FirebaseDatabase.getInstance()
-                .getReference("products/$barcode/imageUrl")
+                .getReference("products")
+                .child(barcode)
+                .child("imageUrl")
                 .setValue(downloadUrl.toString())
         }
 }
 
-/** Builds 10 labels (MM/yy) from M/d/yyyy +11mo…+2mo */
+/** Builds N month-labels (MM/yy) counting +11…+2 months from M/d/yyyy */
 fun getDateLabels(lastUpdated: String?, size: Int): List<String> {
     val parser  = SimpleDateFormat("M/d/yyyy", Locale.US)
     val display = SimpleDateFormat("MM/yy",    Locale.US)

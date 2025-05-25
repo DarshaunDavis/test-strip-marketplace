@@ -7,11 +7,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -22,22 +19,30 @@ import coil.compose.AsyncImage
 import com.lislal.teststripmarketplace.R
 import com.lislal.teststripmarketplace.data.Product
 
+@OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun PriceDialog(
     product: Product,
     buyerKey: String,
+    buyers: List<String>,
     dateLabels: List<String>,
     prices: List<Int>,
     onPriceClick: (Int) -> Unit,
     onImageClick: (Uri) -> Unit,
+    onBuyerSelected: (String) -> Unit,
+    onAddBuyer: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    // launcher to pick a new image from device
+    // 1) image‐picker launcher
     val pickImageLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri -> uri?.let(onImageClick) }
     )
+
+    // 2) spinner state
+    var expanded      by remember { mutableStateOf(false) }
+    var selectedBuyer by remember { mutableStateOf(buyerKey) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -51,6 +56,7 @@ fun PriceDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // — AsyncImage with your URL (or fallback logo)
                 AsyncImage(
                     model               = product.imageUrl,
                     contentDescription  = "Product Image",
@@ -63,52 +69,84 @@ fun PriceDialog(
                         .clickable { pickImageLauncher.launch("image/*") }
                 )
 
+                // — Category
                 Text(
                     "Category: ${product.category}",
                     modifier  = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center
                 )
-                Text(
-                    "Buyer: $buyerKey",
-                    modifier  = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
 
-                // top 5 month labels
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                // — Buyer spinner
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded }
                 ) {
+                    TextField(
+                        value         = selectedBuyer,
+                        onValueChange = { },
+                        readOnly      = true,
+                        label         = { Text("Buyer") },
+                        trailingIcon  = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                        modifier      = Modifier
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)    // <— anchor for the dropdown
+                            .fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        // non-clickable prompt
+                        DropdownMenuItem(
+                            text    = { Text("Select buyer") },
+                            enabled = false,
+                            onClick = {}
+                        )
+                        // existing buyers
+                        buyers.forEach { b ->
+                            DropdownMenuItem(
+                                text    = { Text(b) },
+                                onClick = {
+                                    selectedBuyer = b
+                                    expanded      = false
+                                    onBuyerSelected(b)
+                                }
+                            )
+                        }
+                        // add‐buyer option
+                        DropdownMenuItem(
+                            text    = { Text("Add buyer") },
+                            onClick = {
+                                expanded = false
+                                onAddBuyer()
+                            }
+                        )
+                    }
+                }
+
+                // — top 5 month labels & prices
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     dateLabels.take(5).forEach { Text(it) }
                 }
-                // top 5 prices
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     prices.take(5).forEachIndexed { idx, price ->
                         Text(
-                            text = "$$price",
+                            "$$price",
                             modifier = Modifier.clickable { onPriceClick(idx) }
                         )
                     }
                 }
-                // bottom 5 month labels
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
+
+                Spacer(Modifier.height(12.dp))
+
+                // — bottom 5 month labels & prices
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     dateLabels.drop(5).forEach { Text(it) }
                 }
-                // bottom 5 prices
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     prices.drop(5).forEachIndexed { dropIdx, price ->
                         val idx = dropIdx + 5
                         Text(
-                            text = "$$price",
+                            "$$price",
                             modifier = Modifier.clickable { onPriceClick(idx) }
                         )
                     }
