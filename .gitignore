@@ -24,7 +24,7 @@ misc.xml
 /build/
 /**/build/
 .cxx/
-.cxx/Debug/
+/cxx/Debug/
 /captures/
 /externalNativeBuild/
 
@@ -52,6 +52,9 @@ local.properties
 /app/google-services.json
 *.jks
 *.keystore
+
+# CI helper (Base64-encoded google-services.json)
+gs_base64.txt
 
 # ───────────────────────────────────────────────
 # Crashlytics & Analytics (Optional, but common)
