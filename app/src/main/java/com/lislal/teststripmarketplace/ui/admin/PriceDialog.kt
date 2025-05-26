@@ -44,6 +44,11 @@ fun PriceDialog(
     var expanded      by remember { mutableStateOf(false) }
     var selectedBuyer by remember { mutableStateOf(buyerKey) }
 
+    // sync local spinner selection when parent buyerKey changes
+    LaunchedEffect(buyerKey) {
+        selectedBuyer = buyerKey
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -88,7 +93,7 @@ fun PriceDialog(
                         label         = { Text("Buyer") },
                         trailingIcon  = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
                         modifier      = Modifier
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)    // <— anchor for the dropdown
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                             .fillMaxWidth()
                     )
                     ExposedDropdownMenu(

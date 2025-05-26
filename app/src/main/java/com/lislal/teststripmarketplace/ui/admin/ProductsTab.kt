@@ -157,8 +157,27 @@ fun ProductsTab() {
             onBuyerSelected = { newBuyer ->
                 // switch current buyer
                 buyerMap[prod.barcode] = newBuyer
-                // TODO: reload prod.prices for newBuyer
-            },
+                // reload prices for the selected buyer
+                productsRef.child(prod.barcode)
+                .child("prices")
+                .child(newBuyer)
+                .get()
+                .addOnSuccessListener { snap ->
+                    val fresh = (1..10).map { i ->
+                        snap.child("price$i").value
+                            ?.toString()
+                            ?.toIntOrNull()
+                            ?: 0
+                        }
+                    // update our list + re-show dialog
+                    val idx = products.indexOfFirst { it.barcode == prod.barcode }
+                    if (idx != -1) {
+                        val updated = prod.copy(prices = fresh)
+                        products[idx]       = updated
+                        selectedProduct     = updated
+                        }
+                    }
+                },
             onAddBuyer      = {
                 // TODO: launch “add new buyer” flow
             },
