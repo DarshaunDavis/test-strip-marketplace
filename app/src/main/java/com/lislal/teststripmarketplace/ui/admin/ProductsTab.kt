@@ -22,22 +22,88 @@ import com.lislal.teststripmarketplace.data.Product
 import java.text.SimpleDateFormat
 import java.util.*
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SelectBuyerDialog(
+    buyers: List<String>,
+    onDismiss: () -> Unit,
+    onSubmit: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Select Buyer to Add") },
+        text = {
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = !expanded }
+            ) {
+                TextField(
+                    value = selected,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Buyer") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                )
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Select Buyer") },
+                        onClick = {},
+                        enabled = false
+                    )
+                    buyers.sorted().forEach { b ->
+                        DropdownMenuItem(
+                            text = { Text(b) },
+                            onClick = {
+                                selected = b
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (selected.isNotBlank()) onSubmit(selected)
+                onDismiss()
+            }) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun ProductsTab() {
     // 1) Firebase refs
-    val productsRef    = remember { FirebaseDatabase.getInstance().getReference("products") }
-    val lastUpdatedRef = remember { FirebaseDatabase.getInstance().getReference("last updated") }
+    val productsRef     = remember { FirebaseDatabase.getInstance().getReference("products") }
+    val lastUpdatedRef  = remember { FirebaseDatabase.getInstance().getReference("last updated") }
+    val buyersRef       = remember { FirebaseDatabase.getInstance().getReference("buyers") }
 
-    // 2) State
+    // 2) State holders
     val products        = remember { mutableStateListOf<Product>() }
     val categoryLastMap = remember { mutableStateMapOf<String, String>() }
     val buyerMap        = remember { mutableStateMapOf<String, String>() }
     val buyerListMap    = remember { mutableStateMapOf<String, List<String>>() }
+    val allBuyers       = remember { mutableStateListOf<String>() }
 
-    var selectedProduct by remember { mutableStateOf<Product?>(null) }
-    var editingIndex    by remember { mutableStateOf<Int?>(null) }
-    var overrideInput   by remember { mutableStateOf("") }
+    var selectedProduct    by remember { mutableStateOf<Product?>(null) }
+    var editingIndex       by remember { mutableStateOf<Int?>(null) }
+    var overrideInput      by remember { mutableStateOf("") }
+    var showAddBuyerDialog by remember { mutableStateOf(false) }
 
     // 3) Load last‐updated dates
     LaunchedEffect(lastUpdatedRef) {
@@ -52,54 +118,43 @@ fun ProductsTab() {
         }
     }
 
-    // 4) Load all products (+ their buyer‐keys + imageUrl)
+    // 4) Load all products (+ their buyers + imageUrl)
     LaunchedEffect(productsRef) {
         productsRef.get().addOnSuccessListener { snap ->
-            products.clear()
-            buyerMap.clear()
-            buyerListMap.clear()
-
+            products.clear(); buyerMap.clear(); buyerListMap.clear()
             snap.children.forEach { prodSnap ->
                 val barcode     = prodSnap.key ?: return@forEach
-                val category    = prodSnap.child("category")
-                    .getValue(String::class.java).orEmpty().trim()
-                val description = prodSnap.child("description")
-                    .getValue(String::class.java).orEmpty()
-                val imageUrl    = prodSnap.child("imageUrl")
-                    .getValue(String::class.java)
+                val category    = prodSnap.child("category").getValue(String::class.java).orEmpty().trim()
+                val description = prodSnap.child("description").getValue(String::class.java).orEmpty()
+                val imageUrl    = prodSnap.child("imageUrl").getValue(String::class.java)
 
-                // gather all buyer‐keys under “prices”
                 val pricesNode = prodSnap.child("prices")
                 val buyers     = pricesNode.children.mapNotNull { it.key }
                 buyerListMap[barcode] = buyers
 
-                // pick a default buyer
-                val buyerKey = buyers.firstOrNull().orEmpty()
-                buyerMap[barcode] = buyerKey
+                val defaultBuyer = buyers.firstOrNull().orEmpty()
+                buyerMap[barcode] = defaultBuyer
 
-                // load price1…price10 for that buyer
                 val prices = (1..10).map { i ->
-                    pricesNode
-                        .child(buyerKey)
-                        .child("price$i")
-                        .value
-                        ?.toString()
-                        ?.toIntOrNull()
-                        ?: 0
+                    pricesNode.child(defaultBuyer).child("price$i").value
+                        ?.toString()?.toIntOrNull() ?: 0
                 }
 
-                products += Product(
-                    barcode     = barcode,
-                    category    = category,
-                    description = description,
-                    prices      = prices,
-                    imageUrl    = imageUrl
-                )
+                products += Product(barcode, category, description, prices, imageUrl)
             }
         }
     }
 
-    // 5) Main list UI
+    // 5) Load all global buyers
+    LaunchedEffect(buyersRef) {
+        buyersRef.get().addOnSuccessListener { snap ->
+            allBuyers.clear()
+            snap.children.mapNotNull { it.child("name").getValue(String::class.java) }
+                .forEach { allBuyers += it }
+        }
+    }
+
+    // 6) Main list UI
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Row(
             Modifier.fillMaxWidth(),
@@ -115,22 +170,16 @@ fun ProductsTab() {
             items(products) { product ->
                 Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(2.dp)) {
                     Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment     = Alignment.CenterVertically,
+                        Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
                             product.description,
                             style    = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { selectedProduct = product }
+                            modifier = Modifier.weight(1f).clickable { selectedProduct = product }
                         )
-                        IconButton(onClick = {
-                            productsRef.child(product.barcode).removeValue()
-                        }) {
+                        IconButton(onClick = { productsRef.child(product.barcode).removeValue() }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete")
                         }
                     }
@@ -139,7 +188,7 @@ fun ProductsTab() {
         }
     }
 
-    // 6) Price + Date + Image + Buyer dialog
+    // 7) PriceDialog + Add Buyer trigger
     selectedProduct?.let { prod ->
         PriceDialog(
             product         = prod,
@@ -147,45 +196,46 @@ fun ProductsTab() {
             buyers          = buyerListMap[prod.barcode] ?: emptyList(),
             dateLabels      = getDateLabels(categoryLastMap[prod.category], prod.prices.size),
             prices          = prod.prices,
-            onPriceClick    = { idx ->
-                editingIndex  = idx
-                overrideInput = prod.prices[idx].toString()
-            },
-            onImageClick    = { uri ->
-                uploadImageForProduct(prod.barcode, uri)
-            },
+            onPriceClick    = { idx -> editingIndex = idx; overrideInput = prod.prices[idx].toString() },
+            onImageClick    = { uri -> uploadImageForProduct(prod.barcode, uri) },
             onBuyerSelected = { newBuyer ->
-                // switch current buyer
                 buyerMap[prod.barcode] = newBuyer
-                // reload prices for the selected buyer
                 productsRef.child(prod.barcode)
-                .child("prices")
-                .child(newBuyer)
-                .get()
-                .addOnSuccessListener { snap ->
-                    val fresh = (1..10).map { i ->
-                        snap.child("price$i").value
-                            ?.toString()
-                            ?.toIntOrNull()
-                            ?: 0
+                    .child("prices").child(newBuyer).get()
+                    .addOnSuccessListener { snap ->
+                        val fresh = (1..10).map { i ->
+                            snap.child("price$i").value?.toString()?.toIntOrNull() ?: 0
                         }
-                    // update our list + re-show dialog
-                    val idx = products.indexOfFirst { it.barcode == prod.barcode }
-                    if (idx != -1) {
-                        val updated = prod.copy(prices = fresh)
-                        products[idx]       = updated
-                        selectedProduct     = updated
+                        products.indexOfFirst { it.barcode == prod.barcode }.takeIf { it >= 0 }?.let { idx ->
+                            val updated = prod.copy(prices = fresh)
+                            products[idx] = updated
+                            selectedProduct = updated
                         }
                     }
-                },
-            onAddBuyer      = {
-                // TODO: launch “add new buyer” flow
             },
+            onAddBuyer      = { showAddBuyerDialog = true },
             onDismiss       = { selectedProduct = null }
         )
     }
 
-    // 7) Override‐price dialog
+    // 8) Show SelectBuyerDialog
+    if (showAddBuyerDialog && selectedProduct != null) {
+        SelectBuyerDialog(
+            buyers    = allBuyers,
+            onDismiss = { showAddBuyerDialog = false },
+            onSubmit  = { newBuyer ->
+                val code = selectedProduct!!.barcode
+                buyerListMap[code] = buyerListMap[code].orEmpty() + listOf(newBuyer)
+                buyerMap[code] = newBuyer
+                val init = (1..10).associate { i -> "price$i" to 0 }
+                productsRef.child(code).child("prices").child(newBuyer).setValue(init)
+                selectedProduct = selectedProduct!!.copy(prices = List(10) { 0 })
+                showAddBuyerDialog = false
+            }
+        )
+    }
+
+    // 9) Override-price dialog
     editingIndex?.let { idx ->
         AlertDialog(
             onDismissRequest = { editingIndex = null },
@@ -194,11 +244,11 @@ fun ProductsTab() {
                 Column {
                     Text("Enter new price for month #${idx + 1}")
                     OutlinedTextField(
-                        value           = overrideInput,
-                        onValueChange   = { overrideInput = it.filter(Char::isDigit) },
+                        value = overrideInput,
+                        onValueChange = { overrideInput = it.filter(Char::isDigit) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine      = true,
-                        modifier        = Modifier.fillMaxWidth()
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             },
@@ -206,10 +256,8 @@ fun ProductsTab() {
                 TextButton(onClick = {
                     overrideInput.toIntOrNull()?.let { newVal ->
                         val buyerKey = buyerMap[selectedProduct!!.barcode].orEmpty()
-                        val path     = "products/${selectedProduct!!.barcode}/prices/$buyerKey/price${idx + 1}"
-                        FirebaseDatabase.getInstance()
-                            .getReference(path)
-                            .setValue(newVal)
+                        val path = "products/${selectedProduct!!.barcode}/prices/$buyerKey/price${idx + 1}"
+                        FirebaseDatabase.getInstance().getReference(path).setValue(newVal)
                         selectedProduct!!.prices =
                             selectedProduct!!.prices.toMutableList().apply { set(idx, newVal) }
                     }
@@ -223,31 +271,26 @@ fun ProductsTab() {
     }
 }
 
-// Uploads picked image → Firebase Storage → writes its URL back under products/<barcode>/imageUrl
+// Uploads image URI to Storage & writes URL to Realtime DB
 fun uploadImageForProduct(barcode: String, uri: Uri) {
-    val storageRef = FirebaseStorage
-        .getInstance()
-        .getReference("product_images/$barcode.jpg")
-
-    storageRef.putFile(uri)
+    val ref = FirebaseStorage.getInstance().getReference("product_images/$barcode.jpg")
+    ref.putFile(uri)
         .continueWithTask { task ->
             if (!task.isSuccessful) throw task.exception!!
-            storageRef.downloadUrl
+            ref.downloadUrl
         }
-        .addOnSuccessListener { downloadUrl ->
+        .addOnSuccessListener { url ->
             FirebaseDatabase.getInstance()
-                .getReference("products")
-                .child(barcode)
-                .child("imageUrl")
-                .setValue(downloadUrl.toString())
+                .getReference("products").child(barcode).child("imageUrl")
+                .setValue(url.toString())
         }
 }
 
-/** Builds N month-labels (MM/yy) counting +11…+2 months from M/d/yyyy */
+// Builds labels MM/yy for N months since lastUpdated+2mos…+N+1
 fun getDateLabels(lastUpdated: String?, size: Int): List<String> {
     val parser  = SimpleDateFormat("M/d/yyyy", Locale.US)
     val display = SimpleDateFormat("MM/yy",    Locale.US)
-    val base    = try {
+    val base = try {
         parser.parse(lastUpdated ?: "") ?: return List(size) { "N/A" }
     } catch (_: Exception) {
         return List(size) { "N/A" }
