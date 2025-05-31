@@ -17,37 +17,81 @@ import com.lislal.teststripmarketplace.viewmodel.AppUser
 fun UsersTab(
     adminViewModel: AdminViewModel = viewModel()
 ) {
+    // Collect the real-time list of users from Firebase
     val users by adminViewModel.usersFlow().collectAsState(initial = emptyList())
+
+    // A simple state holder to show action results (e.g., "Role updated", "Error updating")
     var actionResult by remember { mutableStateOf<String?>(null) }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Users (${users.size})", style = MaterialTheme.typography.titleMedium)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Text(
+            "Users (${users.size})",
+            style = MaterialTheme.typography.titleMedium
+        )
         Spacer(Modifier.height(8.dp))
 
-        // ─── Header Row ───────────────────────────────
+        // ─── Header Row ───────────────────────────────────
         Row(
-            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Username", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-            Text("Suspend", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, modifier = Modifier.width(80.dp))
-            Text("Ban", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, modifier = Modifier.width(80.dp))
+            // Username column (flexible width)
+            Text(
+                "Username",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f)
+            )
+
+            // New "Role" header (fixed width)
+            Text(
+                "Role",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(100.dp)
+            )
+
+            // Suspend header
+            Text(
+                "Suspend",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(80.dp)
+            )
+            // Ban header
+            Text(
+                "Ban",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(80.dp)
+            )
         }
         HorizontalDivider()
 
+        // ─── List of Users ──────────────────────────────────
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(users) { user ->
                 UserRow(
                     user = user,
-                    onToggleSuspend = { uid, new ->
-                        adminViewModel.updateUserFlag(uid, "isSuspended", new) { success ->
-                            actionResult = if (success) "Suspend updated" else "Error updating"
+                    onRoleChange = { uid, selectedRole ->
+                        adminViewModel.updateUserRole(uid, selectedRole) { success ->
+                            actionResult = if (success) "Role updated" else "Error updating role"
                         }
                     },
-                    onToggleBan = { uid, new ->
-                        adminViewModel.updateUserFlag(uid, "isBannedSuspended", new) { success ->
-                            actionResult = if (success) "Ban updated" else "Error updating"
+                    onToggleSuspend = { uid, newValue ->
+                        adminViewModel.updateUserFlag(uid, "isSuspended", newValue) { success ->
+                            actionResult = if (success) "Suspend updated" else "Error updating suspend"
+                        }
+                    },
+                    onToggleBan = { uid, newValue ->
+                        adminViewModel.updateUserFlag(uid, "isBannedSuspended", newValue) { success ->
+                            actionResult = if (success) "Ban updated" else "Error updating ban"
                         }
                     }
                 )
@@ -55,39 +99,91 @@ fun UsersTab(
             }
         }
 
-        actionResult?.let {
+        // ─── Action Result Snackbar Text ──────────────────
+        actionResult?.let { msg ->
             Spacer(Modifier.height(12.dp))
-            Text(it, style = MaterialTheme.typography.bodySmall)
+            Text(
+                msg,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun UserRow(
     user: AppUser,
+    onRoleChange: (String, String) -> Unit,
     onToggleSuspend: (String, Boolean) -> Unit,
     onToggleBan: (String, Boolean) -> Unit
 ) {
+    // We keep state for the dropdown expansion and the currently selected role
+    var roleExpanded by remember { mutableStateOf(false) }
+    var selectedRole by remember { mutableStateOf(user.role.ifBlank { "guest" }) }
+
+    // The list of possible roles an Admin can assign
+    val allRoles = listOf("guest", "seller", "buyer", "admin")
+
     Row(
-        Modifier
+        modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // ─── Username (flexible width) ─────────────────
         Text(
-            user.username,
+            text = user.username,
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.weight(1f)
         )
-        // Suspend switch
+
+        // ─── Role Dropdown (fixed width) ────────────────
+        Box(modifier = Modifier.width(100.dp)) {
+            ExposedDropdownMenuBox(
+                expanded = roleExpanded,
+                onExpandedChange = { roleExpanded = !roleExpanded }
+            ) {
+                TextField(
+                    value = selectedRole,
+                    onValueChange = { /* readOnly field */ },
+                    readOnly = true,
+                    label = { Text("Role") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(roleExpanded) },
+                    modifier = Modifier
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .fillMaxWidth()
+                )
+                ExposedDropdownMenu(
+                    expanded = roleExpanded,
+                    onDismissRequest = { roleExpanded = false }
+                ) {
+                    allRoles.forEach { roleOption ->
+                        DropdownMenuItem(
+                            text = { Text(roleOption) },
+                            onClick = {
+                                selectedRole = roleOption
+                                roleExpanded = false
+                                // Propagate the role change back to the ViewModel
+                                onRoleChange(user.userId, roleOption)
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        // ─── Suspend Switch ─────────────────────────────
+        Spacer(Modifier.width(8.dp))
         Box(modifier = Modifier.width(80.dp), contentAlignment = Alignment.Center) {
             Switch(
                 checked = user.isSuspended,
                 onCheckedChange = { onToggleSuspend(user.userId, it) }
             )
         }
+
+        // ─── Ban Switch ─────────────────────────────────
         Spacer(Modifier.width(8.dp))
-        // Ban switch
         Box(modifier = Modifier.width(80.dp), contentAlignment = Alignment.Center) {
             Switch(
                 checked = user.isBanned,

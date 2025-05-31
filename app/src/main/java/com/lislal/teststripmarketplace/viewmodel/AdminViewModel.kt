@@ -23,25 +23,55 @@ class AdminViewModel : ViewModel() {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val list = snapshot.children.mapNotNull { child ->
                     val userId = child.key ?: return@mapNotNull null
-                    val username = child.child("username").getValue(String::class.java).orEmpty()
-                    val role     = child.child("role").getValue(String::class.java).orEmpty()
-                    val suspended = child.child("isSuspended").getValue(Boolean::class.java) ?: false
-                    val banned    = child.child("isBannedSuspended").getValue(Boolean::class.java) ?: false
+                    val username = child.child("username")
+                        .getValue(String::class.java)
+                        .orEmpty()
+                    val role = child.child("role")
+                        .getValue(String::class.java)
+                        .orEmpty()
+                    val suspended = child.child("isSuspended")
+                        .getValue(Boolean::class.java) ?: false
+                    val banned = child.child("isBannedSuspended")
+                        .getValue(Boolean::class.java) ?: false
                     AppUser(userId, username, role, suspended, banned)
                 }
                 trySend(list)
             }
-            override fun onCancelled(error: DatabaseError) { close(error.toException()) }
+
+            override fun onCancelled(error: DatabaseError) {
+                close(error.toException())
+            }
         }
         db.addValueEventListener(listener)
         awaitClose { db.removeEventListener(listener) }
     }
 
     /** Toggle a boolean field under /users/{userId}/{field} */
-    fun updateUserFlag(userId: String, field: String, value: Boolean, onComplete: (Boolean) -> Unit) {
+    fun updateUserFlag(
+        userId: String,
+        field: String,
+        value: Boolean,
+        onComplete: (Boolean) -> Unit
+    ) {
         db.child(userId)
             .child(field)
             .setValue(value)
+            .addOnSuccessListener { onComplete(true) }
+            .addOnFailureListener { onComplete(false) }
+    }
+
+    /**
+     * Change a user’s role under /users/{userId}/role
+     * Valid `newRole` values: "guest", "seller", "buyer", or "admin"
+     */
+    fun updateUserRole(
+        userId: String,
+        newRole: String,
+        onComplete: (Boolean) -> Unit
+    ) {
+        db.child(userId)
+            .child("role")
+            .setValue(newRole)
             .addOnSuccessListener { onComplete(true) }
             .addOnFailureListener { onComplete(false) }
     }
