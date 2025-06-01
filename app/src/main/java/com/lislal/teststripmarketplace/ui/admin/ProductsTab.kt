@@ -23,6 +23,7 @@ import androidx.compose.material3.*
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +47,67 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
 @OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SelectBuyerDialog(
+    buyers: List<String>,
+    onDismiss: () -> Unit,
+    onSubmit: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Select Buyer to Add") },
+        text = {
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = !expanded }
+            ) {
+                TextField(
+                    value = selected,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Buyer") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                )
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Select Buyer") },
+                        onClick = {},
+                        enabled = false
+                    )
+                    buyers.sorted().forEach { b ->
+                        DropdownMenuItem(
+                            text = { Text(b) },
+                            onClick = {
+                                selected = b
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (selected.isNotBlank()) onSubmit(selected)
+                onDismiss()
+            }) { Text("Add") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun ProductsTab() {
@@ -63,11 +125,13 @@ fun ProductsTab() {
     val allBuyers       = remember { mutableStateListOf<String>() }
     val categories      = remember { mutableStateListOf<String>() }
 
-    var selectedProduct by remember { mutableStateOf<Product?>(null) }
-    var editingIndex    by remember { mutableStateOf<Int?>(null) }
-    var overrideInput   by remember { mutableStateOf("") }
-    var showAddDialog   by remember { mutableStateOf(false) }
-    var showScanner     by remember { mutableStateOf(false) }
+    var selectedProduct    by remember { mutableStateOf<Product?>(null) }
+    var editingIndex       by remember { mutableStateOf<Int?>(null) }
+    var overrideInput      by remember { mutableStateOf("") }
+    var showAddDialog      by remember { mutableStateOf(false) }
+    var showScanner        by remember { mutableStateOf(false) }
+    var showAddBuyerDialog by remember { mutableStateOf(false) }
+    var productToDelete    by remember { mutableStateOf<Product?>(null) }
 
     // New-product form state
     var newBarcode        by remember { mutableStateOf("") }
@@ -104,7 +168,9 @@ fun ProductsTab() {
     // Load products (and refresh when new ones are added)
     fun refreshProducts() {
         productsRef.get().addOnSuccessListener { snap ->
-            products.clear(); buyerMap.clear(); buyerListMap.clear()
+            products.clear()
+            buyerMap.clear()
+            buyerListMap.clear()
             snap.children.forEach { prodSnap ->
                 val barcode     = prodSnap.key ?: return@forEach
                 val category    = prodSnap.child("category").getValue(String::class.java).orEmpty().trim()
@@ -116,7 +182,8 @@ fun ProductsTab() {
                 val defaultBuyer = buyers.firstOrNull().orEmpty()
                 buyerMap[barcode] = defaultBuyer
                 val prices = (1..10).map { i ->
-                    pricesNode.child(defaultBuyer).child("price$i").value?.toString()?.toIntOrNull() ?: 0
+                    pricesNode.child(defaultBuyer).child("price$i").value
+                        ?.toString()?.toIntOrNull() ?: 0
                 }
                 products += Product(barcode, category, description, prices, imageUrl)
             }
@@ -180,8 +247,7 @@ fun ProductsTab() {
                                 .clickable { selectedProduct = product }
                         )
                         IconButton(onClick = {
-                            productsRef.child(product.barcode).removeValue()
-                                .addOnSuccessListener { refreshProducts() }
+                            productToDelete = product
                         }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete")
                         }
@@ -189,6 +255,32 @@ fun ProductsTab() {
                 }
             }
         }
+    }
+
+    // Delete Confirmation Dialog
+    productToDelete?.let { prod ->
+        AlertDialog(
+            onDismissRequest = { productToDelete = null },
+            title = { Text("Delete Product") },
+            text = { Text("Are you sure you want to delete \"${prod.description}\"?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    productsRef.child(prod.barcode).removeValue()
+                        .addOnSuccessListener {
+                            Toast.makeText(context, "Product deleted", Toast.LENGTH_SHORT).show()
+                            refreshProducts()
+                            productToDelete = null
+                        }
+                        .addOnFailureListener {
+                            Toast.makeText(context, "Failed to delete product", Toast.LENGTH_SHORT).show()
+                            productToDelete = null
+                        }
+                }) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { productToDelete = null }) { Text("Cancel") }
+            }
+        )
     }
 
     // Add Product Dialog
@@ -246,7 +338,7 @@ fun ProductsTab() {
                             AndroidView(
                                 factory = { ctx ->
                                     DecoratedBarcodeView(ctx).apply {
-                                        initializeFromIntent(Intent())  // necessary for camera activation
+                                        initializeFromIntent(Intent())
                                         decodeContinuous(scanCallback)
                                         resume()
                                         barcodeView = this
@@ -414,14 +506,31 @@ fun ProductsTab() {
                         }
                         products.indexOfFirst { it.barcode == prod.barcode }
                             .takeIf { it >= 0 }?.let { idx ->
-                                val updated = prod.copy(prices = fresh)
+                                val updated    = prod.copy(prices = fresh)
                                 products[idx] = updated
                                 selectedProduct = updated
                             }
                     }
             },
-            onAddBuyer      = { /* unchanged */ },
+            onAddBuyer      = { showAddBuyerDialog = true },
             onDismiss       = { selectedProduct = null }
+        )
+    }
+
+    // Select Buyer Dialog
+    if (showAddBuyerDialog && selectedProduct != null) {
+        SelectBuyerDialog(
+            buyers    = allBuyers,
+            onDismiss = { showAddBuyerDialog = false },
+            onSubmit  = { newBuyer ->
+                val code = selectedProduct!!.barcode
+                buyerListMap[code] = buyerListMap[code].orEmpty() + listOf(newBuyer)
+                buyerMap[code] = newBuyer
+                val init = (1..10).associate { i -> "price$i" to 0 }
+                productsRef.child(code).child("prices").child(newBuyer).setValue(init)
+                selectedProduct = selectedProduct!!.copy(prices = List(10) { 0 })
+                showAddBuyerDialog = false
+            }
         )
     }
 }
@@ -442,10 +551,13 @@ fun uploadImageForProduct(barcode: String, uri: Uri) {
 }
 
 fun getDateLabels(lastUpdated: String?, size: Int): List<String> {
-    val parser = SimpleDateFormat("M/d/yyyy", Locale.US)
-    val display = SimpleDateFormat("MM/yy", Locale.US)
-    val base = try { parser.parse(lastUpdated ?: "") ?: return List(size) { "N/A" } }
-    catch (_: Exception) { return List(size) { "N/A" } }
+    val parser  = SimpleDateFormat("M/d/yyyy", Locale.US)
+    val display = SimpleDateFormat("MM/yy",    Locale.US)
+    val base    = try {
+        parser.parse(lastUpdated ?: "") ?: return List(size) { "N/A" }
+    } catch (_: Exception) {
+        return List(size) { "N/A" }
+    }
     return List(size) { i ->
         Calendar.getInstance().apply {
             time = base
