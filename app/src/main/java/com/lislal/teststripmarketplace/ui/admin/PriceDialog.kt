@@ -24,14 +24,14 @@ import com.lislal.teststripmarketplace.data.Product
 @Composable
 fun PriceDialog(
     product: Product,
-    buyerKey: String,
-    buyers: List<String>,
+    wholesalerKey: String,
+    wholesalers: List<String>,
     dateLabels: List<String>,
     prices: List<Int>,
     onPriceClick: (Int) -> Unit,
     onImageClick: (Uri) -> Unit,
-    onBuyerSelected: (String) -> Unit,
-    onAddBuyer: () -> Unit,
+    onWholesalerSelected: (String) -> Unit,
+    onAddWholesaler: () -> Unit,
     onDismiss: () -> Unit
 ) {
     // 1) image‐picker launcher
@@ -42,11 +42,11 @@ fun PriceDialog(
 
     // 2) spinner state
     var expanded      by remember { mutableStateOf(false) }
-    var selectedBuyer by remember { mutableStateOf(buyerKey) }
+    var selectedWholesaler by remember { mutableStateOf(wholesalerKey) }
 
-    // sync local spinner selection when parent buyerKey changes
-    LaunchedEffect(buyerKey) {
-        selectedBuyer = buyerKey
+    // sync local spinner selection when parent wholesalerKey changes
+    LaunchedEffect(wholesalerKey) {
+        selectedWholesaler = wholesalerKey
     }
 
     AlertDialog(
@@ -81,16 +81,16 @@ fun PriceDialog(
                     textAlign = TextAlign.Center
                 )
 
-                // — Buyer spinner
+                // — Wholesaler spinner
                 ExposedDropdownMenuBox(
                     expanded = expanded,
                     onExpandedChange = { expanded = !expanded }
                 ) {
                     TextField(
-                        value         = selectedBuyer,
+                        value         = selectedWholesaler,
                         onValueChange = { },
                         readOnly      = true,
-                        label         = { Text("Buyer") },
+                        label         = { Text("Wholesaler") },
                         trailingIcon  = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
                         modifier      = Modifier
                             .menuAnchor(MenuAnchorType.PrimaryNotEditable)
@@ -102,27 +102,27 @@ fun PriceDialog(
                     ) {
                         // non-clickable prompt
                         DropdownMenuItem(
-                            text    = { Text("Select buyer") },
+                            text    = { Text("Select wholesaler") },
                             enabled = false,
                             onClick = {}
                         )
-                        // existing buyers
-                        buyers.forEach { b ->
+                        // existing wholesalers
+                        wholesalers.forEach { b ->
                             DropdownMenuItem(
                                 text    = { Text(b) },
                                 onClick = {
-                                    selectedBuyer = b
+                                    selectedWholesaler = b
                                     expanded      = false
-                                    onBuyerSelected(b)
+                                    onWholesalerSelected(b)
                                 }
                             )
                         }
-                        // add‐buyer option
+                        // add‐wholesaler option
                         DropdownMenuItem(
-                            text    = { Text("Add buyer") },
+                            text    = { Text("Add wholesaler") },
                             onClick = {
                                 expanded = false
-                                onAddBuyer()
+                                onAddWholesaler()
                             }
                         )
                     }

@@ -16,9 +16,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun AddBuyerDialog(
+fun AddWholesalerDialog(
     onDismiss: () -> Unit,
-    onSubmit: (Buyer) -> Unit
+    onSubmit: (Wholesaler) -> Unit
 ) {
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -41,7 +41,7 @@ fun AddBuyerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Buyer") },
+        title = { Text("Add Wholesaler") },
         text = {
             Column(
                 Modifier
@@ -160,7 +160,7 @@ fun AddBuyerDialog(
                     zip.length == 5
                 ) {
                     onSubmit(
-                        Buyer(
+                        Wholesaler(
                             name = name.trim(),
                             address = address.trim(),
                             suite = suite.trim(),
@@ -182,7 +182,7 @@ fun AddBuyerDialog(
     )
 }
 
-data class Buyer(
+data class Wholesaler(
     val name: String,
     val address: String,
     val suite: String,

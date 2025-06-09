@@ -1,4 +1,4 @@
-// EditBuyerDialog.kt
+// EditWholesalerDialog.kt
 package com.lislal.teststripmarketplace.ui.admin
 
 import androidx.compose.foundation.layout.*
@@ -15,13 +15,13 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 
 /**
- * Dialog for editing a buyer’s fields.
+ * Dialog for editing a wholesaler’s fields.
  *
  * @param onDismiss Called if the user cancels
  * @param onSubmit  A map of only the fields to update; empty map = no-op
  */
 @Composable
-fun EditBuyerDialog(
+fun EditWholesalerDialog(
     onDismiss: () -> Unit,
     onSubmit: (Map<String, Any>) -> Unit
 ) {
@@ -38,7 +38,7 @@ fun EditBuyerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit Buyer") },
+        title = { Text("Edit Wholesaler") },
         text = {
             Column(
                 Modifier

@@ -62,7 +62,9 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.firebase.storage.ktx)
-    implementation("io.coil-kt:coil-compose:2.2.2")
+    implementation(libs.coil.compose)
+    implementation (libs.zxing.android.embedded)
+    implementation (libs.core)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

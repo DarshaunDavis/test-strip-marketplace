@@ -23,41 +23,41 @@ import java.time.LocalDate
 @Composable
 fun AdminActionsTab() {
     // ── Firebase references ───────────────────────────────
-    val buyersRef     = remember { FirebaseDatabase.getInstance().getReference("buyers") }
+    val wholesalersRef     = remember { FirebaseDatabase.getInstance().getReference("wholesalers") }
     val categoriesRef = remember { FirebaseDatabase.getInstance().getReference("categories") }
 
     // ── In-memory caches ──────────────────────────────────
-    val buyers     = remember { mutableStateListOf<Pair<String, String>>() }
+    val wholesalers     = remember { mutableStateListOf<Pair<String, String>>() }
     val categories = remember { mutableStateListOf<String>() }
 
-    // ── Buyers: one-time load + live updates ─────────────
-    LaunchedEffect(buyersRef) {
-        buyersRef.get().addOnSuccessListener { snap ->
-            buyers.clear()
+    // ── Wholesalers: one-time load + live updates ─────────────
+    LaunchedEffect(wholesalersRef) {
+        wholesalersRef.get().addOnSuccessListener { snap ->
+            wholesalers.clear()
             snap.children.forEach { child ->
                 child.key?.let { id ->
                     val name = child.child("name")
                         .getValue(String::class.java) ?: "Unnamed"
-                    buyers += id to name
+                    wholesalers += id to name
                 }
             }
         }
     }
-    DisposableEffect(buyersRef) {
+    DisposableEffect(wholesalersRef) {
         val listener = object : ValueEventListener {
             override fun onDataChange(snap: DataSnapshot) {
-                buyers.clear()
+                wholesalers.clear()
                 snap.children.forEach { child ->
                     child.key?.let { id ->
                         val name = child.child("name").getValue(String::class.java) ?: "Unnamed"
-                        buyers += id to name
+                        wholesalers += id to name
                     }
                 }
             }
             override fun onCancelled(error: DatabaseError) {}
         }
-        buyersRef.addValueEventListener(listener)
-        onDispose { buyersRef.removeEventListener(listener) }
+        wholesalersRef.addValueEventListener(listener)
+        onDispose { wholesalersRef.removeEventListener(listener) }
     }
 
     // ── Categories: one-time load + live updates ──────────
@@ -80,10 +80,10 @@ fun AdminActionsTab() {
     }
 
     // ── UI state ───────────────────────────────────────────
-    var buyerExpanded      by remember { mutableStateOf(false) }
-    var selectedBuyerId    by remember { mutableStateOf<String?>(null) }
-    var showAddBuyer       by remember { mutableStateOf(false) }
-    var showEditBuyer      by remember { mutableStateOf(false) }
+    var wholesalerExpanded      by remember { mutableStateOf(false) }
+    var selectedWholesalerId    by remember { mutableStateOf<String?>(null) }
+    var showAddWholesaler       by remember { mutableStateOf(false) }
+    var showEditWholesaler      by remember { mutableStateOf(false) }
 
     var showAddCategory    by remember { mutableStateOf(false) }
     var showDeleteCategory by remember { mutableStateOf(false) }
@@ -101,7 +101,7 @@ fun AdminActionsTab() {
     ) {
         Spacer(Modifier.height(16.dp))
 
-        // ── Manage Buyers Card ───────────────────────────────
+        // ── Manage Wholesalers Card ───────────────────────────────
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -116,7 +116,7 @@ fun AdminActionsTab() {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    "Manage Buyers",
+                    "Manage Wholesalers",
                     style     = MaterialTheme.typography.titleMedium,
                     modifier  = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center
@@ -127,34 +127,34 @@ fun AdminActionsTab() {
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment     = Alignment.Top
                 ) {
-                    // Edit Buyer spinner
+                    // Edit Wholesaler spinner
                     Column(Modifier.weight(1f)) {
-                        Text("Edit Buyer", style = MaterialTheme.typography.labelLarge)
+                        Text("Edit Wholesaler", style = MaterialTheme.typography.labelLarge)
                         Spacer(Modifier.height(4.dp))
                         ExposedDropdownMenuBox(
-                            expanded         = buyerExpanded,
-                            onExpandedChange = { buyerExpanded = !buyerExpanded }
+                            expanded         = wholesalerExpanded,
+                            onExpandedChange = { wholesalerExpanded = !wholesalerExpanded }
                         ) {
                             OutlinedTextField(
-                                value        = buyers.firstOrNull { it.first == selectedBuyerId }?.second
-                                    ?: if (buyers.isEmpty()) "Loading buyers…" else "Select Buyer",
+                                value        = wholesalers.firstOrNull { it.first == selectedWholesalerId }?.second
+                                    ?: if (wholesalers.isEmpty()) "Loading wholesalers…" else "Select Wholesaler",
                                 onValueChange = {},
                                 readOnly     = true,
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(buyerExpanded) },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(wholesalerExpanded) },
                                 modifier     = Modifier
                                     .fillMaxWidth()
                                     .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                             )
                             ExposedDropdownMenu(
-                                expanded         = buyerExpanded,
-                                onDismissRequest = { buyerExpanded = false }
+                                expanded         = wholesalerExpanded,
+                                onDismissRequest = { wholesalerExpanded = false }
                             ) {
-                                buyers.forEach { (id, name) ->
+                                wholesalers.forEach { (id, name) ->
                                     DropdownMenuItem(
                                         text    = { Text(name) },
                                         onClick = {
-                                            selectedBuyerId = id
-                                            buyerExpanded   = false
+                                            selectedWholesalerId = id
+                                            wholesalerExpanded   = false
                                         }
                                     )
                                 }
@@ -162,12 +162,12 @@ fun AdminActionsTab() {
                         }
                     }
 
-                    // Add Buyer button
+                    // Add Wholesaler button
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Add Buyer", style = MaterialTheme.typography.labelLarge)
+                        Text("Add Wholesaler", style = MaterialTheme.typography.labelLarge)
                         Spacer(Modifier.height(4.dp))
                         Button(
-                            onClick        = { showAddBuyer = true },
+                            onClick        = { showAddWholesaler = true },
                             modifier       = Modifier.size(36.dp),
                             contentPadding = PaddingValues(0.dp)
                         ) {
@@ -176,9 +176,9 @@ fun AdminActionsTab() {
                     }
                 }
 
-                // Selected Buyer + Edit link
-                selectedBuyerId?.let { id ->
-                    val name = buyers.firstOrNull { it.first == id }?.second.orEmpty()
+                // Selected Wholesaler + Edit link
+                selectedWholesalerId?.let { id ->
+                    val name = wholesalers.firstOrNull { it.first == id }?.second.orEmpty()
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -187,7 +187,7 @@ fun AdminActionsTab() {
                         verticalAlignment     = Alignment.CenterVertically
                     ) {
                         Text(name, style = MaterialTheme.typography.bodyLarge)
-                        TextButton(onClick = { showEditBuyer = true }) {
+                        TextButton(onClick = { showEditWholesaler = true }) {
                             Text("Edit")
                         }
                     }
@@ -270,26 +270,26 @@ fun AdminActionsTab() {
     }
 
     // ── Dialog invocations ────────────────────────────────
-    if (showAddBuyer) {
-        AddBuyerDialog(
-            onDismiss = { showAddBuyer = false },
-            onSubmit  = { buyer ->
-                buyersRef.push().setValue(buyer)
-                showAddBuyer = false
+    if (showAddWholesaler) {
+        AddWholesalerDialog(
+            onDismiss = { showAddWholesaler = false },
+            onSubmit  = { wholesaler ->
+                wholesalersRef.push().setValue(wholesaler)
+                showAddWholesaler = false
             }
         )
     }
-    if (showEditBuyer && selectedBuyerId != null) {
-        EditBuyerDialog(
-            onDismiss = { showEditBuyer = false },
+    if (showEditWholesaler && selectedWholesalerId != null) {
+        EditWholesalerDialog(
+            onDismiss = { showEditWholesaler = false },
             onSubmit  = { updates ->
                 val filtered = updates
                     .filterValues { v -> v is String && (v).isNotBlank() }
                     .mapValues    { it.value}
                 if (filtered.isNotEmpty()) {
-                    buyersRef.child(selectedBuyerId!!).updateChildren(filtered)
+                    wholesalersRef.child(selectedWholesalerId!!).updateChildren(filtered)
                 }
-                showEditBuyer = false
+                showEditWholesaler = false
             }
         )
     }

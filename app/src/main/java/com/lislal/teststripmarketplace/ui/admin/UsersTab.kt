@@ -123,7 +123,7 @@ private fun UserRow(
     var selectedRole by remember { mutableStateOf(user.role.ifBlank { "guest" }) }
 
     // The list of possible roles an Admin can assign
-    val allRoles = listOf("guest", "seller", "buyer", "admin")
+    val allRoles = listOf("guest", "seller", "wholesaler", "admin")
 
     Row(
         modifier = Modifier

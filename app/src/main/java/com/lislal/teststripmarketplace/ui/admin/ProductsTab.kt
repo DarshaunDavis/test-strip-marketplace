@@ -14,8 +14,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Delete
@@ -48,8 +46,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SelectBuyerDialog(
-    buyers: List<String>,
+fun SelectWholesalerDialog(
+    wholesalers: List<String>,
     onDismiss: () -> Unit,
     onSubmit: (String) -> Unit
 ) {
@@ -58,7 +56,7 @@ fun SelectBuyerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Select Buyer to Add") },
+        title = { Text("Select Wholesaler to Add") },
         text = {
             ExposedDropdownMenuBox(
                 expanded = expanded,
@@ -68,7 +66,7 @@ fun SelectBuyerDialog(
                     value = selected,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Buyer") },
+                    label = { Text("Wholesaler") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -79,15 +77,15 @@ fun SelectBuyerDialog(
                     onDismissRequest = { expanded = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Select Buyer") },
+                        text = { Text("Select Wholesaler") },
                         onClick = {},
                         enabled = false
                     )
-                    buyers.sorted().forEach { b ->
+                    wholesalers.sorted().forEach { w ->
                         DropdownMenuItem(
-                            text = { Text(b) },
+                            text = { Text(w) },
                             onClick = {
-                                selected = b
+                                selected = w
                                 expanded = false
                             }
                         )
@@ -115,40 +113,37 @@ fun ProductsTab() {
     val productsRef    = remember { FirebaseDatabase.getInstance().getReference("products") }
     val categoriesRef  = remember { FirebaseDatabase.getInstance().getReference("categories") }
     val lastUpdatedRef = remember { FirebaseDatabase.getInstance().getReference("last updated") }
-    val buyersRef      = remember { FirebaseDatabase.getInstance().getReference("buyers") }
+    val wholesalersRef = remember { FirebaseDatabase.getInstance().getReference("wholesalers") }
 
     // State holders
-    val products        = remember { mutableStateListOf<Product>() }
-    val categoryLastMap = remember { mutableStateMapOf<String, String>() }
-    val buyerMap        = remember { mutableStateMapOf<String, String>() }
-    val buyerListMap    = remember { mutableStateMapOf<String, List<String>>() }
-    val allBuyers       = remember { mutableStateListOf<String>() }
-    val categories      = remember { mutableStateListOf<String>() }
+    val products             = remember { mutableStateListOf<Product>() }
+    val categoryLastMap      = remember { mutableStateMapOf<String, String>() }
+    val wholesalerMap        = remember { mutableStateMapOf<String, String>() }
+    val wholesalerListMap    = remember { mutableStateMapOf<String, List<String>>() }
+    val allWholesalers       = remember { mutableStateListOf<String>() }
+    val categories           = remember { mutableStateListOf<String>() }
 
-    var selectedProduct    by remember { mutableStateOf<Product?>(null) }
-    var editingIndex       by remember { mutableStateOf<Int?>(null) }
-    var overrideInput      by remember { mutableStateOf("") }
-    var showAddDialog      by remember { mutableStateOf(false) }
-    var showScanner        by remember { mutableStateOf(false) }
-    var showAddBuyerDialog by remember { mutableStateOf(false) }
-    var productToDelete    by remember { mutableStateOf<Product?>(null) }
+    var selectedProduct         by remember { mutableStateOf<Product?>(null) }
+    var editingIndex            by remember { mutableStateOf<Int?>(null) }
+    var overrideInput           by remember { mutableStateOf("") }
+    var showAddDialog           by remember { mutableStateOf(false) }
+    var showScanner             by remember { mutableStateOf(false) }
+    var showAddWholesalerDialog by remember { mutableStateOf(false) }
+    var productToDelete         by remember { mutableStateOf<Product?>(null) }
 
     // New-product form state
-    var newBarcode        by remember { mutableStateOf("") }
-    var expandedCategory  by remember { mutableStateOf(false) }
-    var selectedCategory  by remember { mutableStateOf("") }
-    var descriptionInput  by remember { mutableStateOf("") }
+    var newBarcode       by remember { mutableStateOf("") }
+    var expandedCategory by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf("") }
+    var descriptionInput by remember { mutableStateOf("") }
 
-    // Request camera permission launcher
+    // Camera permission launcher
     val context = LocalContext.current
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) {
-            showScanner = true
-        } else {
-            Toast.makeText(context, "Camera permission required to scan barcodes", Toast.LENGTH_SHORT).show()
-            showScanner = false
+        showScanner = granted.also {
+            if (!it) Toast.makeText(context, "Camera permission required to scan barcodes", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -165,25 +160,23 @@ fun ProductsTab() {
         }
     }
 
-    // Load products (and refresh when new ones are added)
+    // Refresh products helper
     fun refreshProducts() {
         productsRef.get().addOnSuccessListener { snap ->
-            products.clear()
-            buyerMap.clear()
-            buyerListMap.clear()
+            products.clear(); wholesalerMap.clear(); wholesalerListMap.clear()
             snap.children.forEach { prodSnap ->
                 val barcode     = prodSnap.key ?: return@forEach
                 val category    = prodSnap.child("category").getValue(String::class.java).orEmpty().trim()
                 val description = prodSnap.child("description").getValue(String::class.java).orEmpty()
                 val imageUrl    = prodSnap.child("imageUrl").getValue(String::class.java)
                 val pricesNode  = prodSnap.child("prices")
-                val buyers      = pricesNode.children.mapNotNull { it.key }
-                buyerListMap[barcode] = buyers
-                val defaultBuyer = buyers.firstOrNull().orEmpty()
-                buyerMap[barcode] = defaultBuyer
+                val wholesalers = pricesNode.children.mapNotNull { it.key }
+                wholesalerListMap[barcode] = wholesalers
+                val defaultWholesaler = wholesalers.firstOrNull().orEmpty()
+                wholesalerMap[barcode] = defaultWholesaler
                 val prices = (1..10).map { i ->
-                    pricesNode.child(defaultBuyer).child("price$i").value
-                        ?.toString()?.toIntOrNull() ?: 0
+                    pricesNode.child(defaultWholesaler).child("price$i")
+                        .value?.toString()?.toIntOrNull() ?: 0
                 }
                 products += Product(barcode, category, description, prices, imageUrl)
             }
@@ -191,64 +184,41 @@ fun ProductsTab() {
     }
     LaunchedEffect(productsRef) { refreshProducts() }
 
-    // Load all buyers
-    LaunchedEffect(buyersRef) {
-        buyersRef.get().addOnSuccessListener { snap ->
-            allBuyers.clear()
+    // Load all wholesalers
+    LaunchedEffect(wholesalersRef) {
+        wholesalersRef.get().addOnSuccessListener { snap ->
+            allWholesalers.clear()
             snap.children.mapNotNull { it.child("name").getValue(String::class.java) }
-                .forEach { allBuyers += it }
+                .forEach { allWholesalers += it }
         }
     }
 
-    // Load categories (use keys since values may be Boolean)
+    // Load categories
     LaunchedEffect(categoriesRef) {
         categoriesRef.get().addOnSuccessListener { snap ->
             categories.clear()
-            snap.children.mapNotNull { it.key }
-                .forEach { categories += it }
+            snap.children.mapNotNull { it.key }.forEach { categories += it }
         }
     }
 
-    // Main UI
+    // ── Main UI ──────────────────────────────────────────
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment     = Alignment.CenterVertically
-        ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Manage Products", style = MaterialTheme.typography.titleLarge)
             Button(onClick = {
-                // Reset form state when opening
-                newBarcode = ""
-                selectedCategory = ""
-                descriptionInput = ""
+                newBarcode = ""; selectedCategory = ""; descriptionInput = ""
                 showAddDialog = true
             }) { Text("➕ Add Product") }
         }
         Spacer(Modifier.height(16.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(products) { product ->
-                Card(
-                    Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment     = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            product.description,
-                            style    = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { selectedProduct = product }
+                Card(Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(product.description, style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.weight(1f).clickable { selectedProduct = product }
                         )
-                        IconButton(onClick = {
-                            productToDelete = product
-                        }) {
+                        IconButton(onClick = { productToDelete = product }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete")
                         }
                     }
@@ -257,13 +227,13 @@ fun ProductsTab() {
         }
     }
 
-    // Delete Confirmation Dialog
+    // ── Delete Confirmation Dialog ───────────────────────
     productToDelete?.let { prod ->
         AlertDialog(
             onDismissRequest = { productToDelete = null },
-            title = { Text("Delete Product") },
-            text = { Text("Are you sure you want to delete \"${prod.description}\"?") },
-            confirmButton = {
+            title            = { Text("Delete Product") },
+            text             = { Text("Are you sure you want to delete \"${prod.description}\"?") },
+            confirmButton    = {
                 TextButton(onClick = {
                     productsRef.child(prod.barcode).removeValue()
                         .addOnSuccessListener {
@@ -277,18 +247,17 @@ fun ProductsTab() {
                         }
                 }) { Text("Delete") }
             },
-            dismissButton = {
+            dismissButton    = {
                 TextButton(onClick = { productToDelete = null }) { Text("Cancel") }
             }
         )
     }
 
-    // Add Product Dialog
+    // ── Add Product Dialog ───────────────────────────────
     if (showAddDialog) {
         val lifecycleOwner = LocalLifecycleOwner.current
         var barcodeView: DecoratedBarcodeView? by remember { mutableStateOf(null) }
 
-        // Lifecycle handling for scanner
         DisposableEffect(lifecycleOwner) {
             val observer = object : DefaultLifecycleObserver {
                 override fun onResume(owner: LifecycleOwner) { barcodeView?.resume() }
@@ -298,19 +267,13 @@ fun ProductsTab() {
             onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
         }
 
-        // Scanner callback
         val scanCallback = remember {
             object : BarcodeCallback {
                 override fun barcodeResult(result: BarcodeResult?) {
                     result?.text?.takeIf { it.isNotBlank() }?.let { code ->
-                        // Check for duplicate
                         productsRef.child(code).get().addOnSuccessListener { snap ->
                             if (snap.exists()) {
-                                Toast.makeText(
-                                    context,
-                                    "This barcode already exists—cannot duplicate.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                Toast.makeText(context, "This barcode already exists—cannot duplicate.", Toast.LENGTH_SHORT).show()
                             } else {
                                 newBarcode = code
                             }
@@ -323,54 +286,33 @@ fun ProductsTab() {
         }
 
         Dialog(onDismissRequest = { showAddDialog = false }) {
-            Surface(
-                shape = MaterialTheme.shapes.medium,
-                tonalElevation = 8.dp
-            ) {
+            Surface(shape = MaterialTheme.shapes.medium, tonalElevation = 8.dp) {
                 Column(Modifier.padding(16.dp)) {
-                    // Embedded Scanner View
                     if (showScanner) {
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .height(200.dp)
-                        ) {
-                            AndroidView(
-                                factory = { ctx ->
-                                    DecoratedBarcodeView(ctx).apply {
-                                        initializeFromIntent(Intent())
-                                        decodeContinuous(scanCallback)
-                                        resume()
-                                        barcodeView = this
-                                    }
-                                },
-                                modifier = Modifier.fillMaxSize()
-                            )
+                        Box(Modifier.fillMaxWidth().height(200.dp)) {
+                            AndroidView(factory = { ctx ->
+                                DecoratedBarcodeView(ctx).apply {
+                                    initializeFromIntent(Intent())
+                                    decodeContinuous(scanCallback)
+                                    resume()
+                                    barcodeView = this
+                                }
+                            }, modifier = Modifier.fillMaxSize())
                         }
                         Spacer(Modifier.height(8.dp))
                     }
-                    // Barcode Field with Scan Icon
                     OutlinedTextField(
-                        value = newBarcode,
-                        onValueChange = { newBarcode = it },
+                        value = newBarcode, onValueChange = { newBarcode = it },
                         label = { Text("Barcode") },
                         trailingIcon = {
                             IconButton(onClick = {
-                                // Check camera permission before showing scanner
-                                if (ContextCompat.checkSelfPermission(
-                                        context,
-                                        Manifest.permission.CAMERA
-                                    ) == PackageManager.PERMISSION_GRANTED
-                                ) {
+                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                                     showScanner = true
                                 } else {
                                     cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                                 }
                             }) {
-                                Icon(
-                                    imageVector = Icons.Default.QrCodeScanner,
-                                    contentDescription = "Scan Barcode"
-                                )
+                                Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan Barcode")
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -378,46 +320,24 @@ fun ProductsTab() {
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                     Spacer(Modifier.height(8.dp))
-                    // Category Dropdown
-                    ExposedDropdownMenuBox(
-                        expanded = expandedCategory,
-                        onExpandedChange = { expandedCategory = !expandedCategory },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
+                    ExposedDropdownMenuBox(expanded = expandedCategory, onExpandedChange = { expandedCategory = !expandedCategory }, modifier = Modifier.fillMaxWidth()) {
                         OutlinedTextField(
-                            value = selectedCategory,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Category") },
-                            trailingIcon = {
-                                ExposedDropdownMenuDefaults.TrailingIcon(expandedCategory)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                            value = selectedCategory, onValueChange = {},
+                            readOnly = true, label = { Text("Category") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandedCategory) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
                         )
-                        ExposedDropdownMenu(
-                            expanded = expandedCategory,
-                            onDismissRequest = { expandedCategory = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Select Category") },
-                                onClick = {},
-                                enabled = false
-                            )
+                        ExposedDropdownMenu(expanded = expandedCategory, onDismissRequest = { expandedCategory = false }) {
+                            DropdownMenuItem(text = { Text("Select Category") }, onClick = {}, enabled = false)
                             categories.sorted().forEach { cat ->
-                                DropdownMenuItem(
-                                    text = { Text(cat) },
-                                    onClick = {
-                                        selectedCategory = cat
-                                        expandedCategory = false
-                                    }
-                                )
+                                DropdownMenuItem(text = { Text(cat) }, onClick = {
+                                    selectedCategory = cat
+                                    expandedCategory = false
+                                })
                             }
                         }
                     }
                     Spacer(Modifier.height(8.dp))
-                    // Description Field
                     OutlinedTextField(
                         value = descriptionInput,
                         onValueChange = { descriptionInput = it },
@@ -426,110 +346,129 @@ fun ProductsTab() {
                         singleLine = false
                     )
                     Spacer(Modifier.height(16.dp))
-                    // Buttons Row
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(onClick = { showAddDialog = false }) {
-                            Text("Cancel")
-                        }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showAddDialog = false }) { Text("Cancel") }
                         Spacer(Modifier.width(8.dp))
                         Button(onClick = {
-                            // Validation
                             when {
-                                newBarcode.isBlank() -> {
-                                    Toast.makeText(context, "Barcode cannot be blank.", Toast.LENGTH_SHORT).show()
-                                }
-                                selectedCategory.isBlank() -> {
-                                    Toast.makeText(context, "Please select a category.", Toast.LENGTH_SHORT).show()
-                                }
-                                descriptionInput.isBlank() -> {
-                                    Toast.makeText(context, "Description cannot be blank.", Toast.LENGTH_SHORT).show()
-                                }
+                                newBarcode.isBlank() -> Toast.makeText(context, "Barcode cannot be blank.", Toast.LENGTH_SHORT).show()
+                                selectedCategory.isBlank() -> Toast.makeText(context, "Please select a category.", Toast.LENGTH_SHORT).show()
+                                descriptionInput.isBlank() -> Toast.makeText(context, "Description cannot be blank.", Toast.LENGTH_SHORT).show()
                                 else -> {
-                                    // Write to Firebase
-                                    val data = mapOf(
-                                        "category"    to selectedCategory,
-                                        "description" to descriptionInput
-                                    )
+                                    val data = mapOf("category" to selectedCategory, "description" to descriptionInput)
                                     productsRef.child(newBarcode).setValue(data)
                                         .addOnSuccessListener {
-                                            Toast.makeText(
-                                                context,
-                                                "Product added successfully.",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
+                                            Toast.makeText(context, "Product added successfully.", Toast.LENGTH_SHORT).show()
                                             showAddDialog = false
                                             refreshProducts()
                                         }
                                         .addOnFailureListener {
-                                            Toast.makeText(
-                                                context,
-                                                "Failed to add product.",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
+                                            Toast.makeText(context, "Failed to add product.", Toast.LENGTH_SHORT).show()
                                         }
                                 }
                             }
-                        }) {
-                            Text("Save")
-                        }
+                        }) { Text("Save") }
                     }
                 }
             }
         }
     }
 
-    // PriceDialog (unchanged)...
+    // ── PriceDialog (unchanged) ───────────────────────────
     selectedProduct?.let { prod ->
         PriceDialog(
-            product         = prod,
-            buyerKey        = buyerMap[prod.barcode].orEmpty(),
-            buyers          = buyerListMap[prod.barcode] ?: emptyList(),
-            dateLabels      = getDateLabels(categoryLastMap[prod.category], prod.prices.size),
-            prices          = prod.prices,
-            onPriceClick    = { idx ->
-                editingIndex = idx
+            product              = prod,
+            wholesalerKey        = wholesalerMap[prod.barcode].orEmpty(),
+            wholesalers          = wholesalerListMap[prod.barcode] ?: emptyList(),
+            dateLabels           = getDateLabels(categoryLastMap[prod.category], prod.prices.size),
+            prices               = prod.prices,
+            onPriceClick         = { idx ->
+                editingIndex  = idx
                 overrideInput = prod.prices[idx].toString()
             },
-            onImageClick    = { uri ->
-                uploadImageForProduct(prod.barcode, uri)
-            },
-            onBuyerSelected = { newBuyer ->
-                buyerMap[prod.barcode] = newBuyer
-                productsRef.child(prod.barcode)
-                    .child("prices").child(newBuyer).get()
+            onImageClick         = { uri -> uploadImageForProduct(prod.barcode, uri) },
+            onWholesalerSelected = { newWholesaler ->
+                wholesalerMap[prod.barcode] = newWholesaler
+                productsRef.child(prod.barcode).child("prices").child(newWholesaler).get()
                     .addOnSuccessListener { snap ->
                         val fresh = (1..10).map { i ->
                             snap.child("price$i").value?.toString()?.toIntOrNull() ?: 0
                         }
-                        products.indexOfFirst { it.barcode == prod.barcode }
-                            .takeIf { it >= 0 }?.let { idx ->
-                                val updated    = prod.copy(prices = fresh)
-                                products[idx] = updated
-                                selectedProduct = updated
-                            }
+                        val idx = products.indexOfFirst { it.barcode == prod.barcode }
+                        if (idx >= 0) {
+                            products[idx] = prod.copy(prices = fresh)
+                            selectedProduct = products[idx]
+                        }
                     }
             },
-            onAddBuyer      = { showAddBuyerDialog = true },
-            onDismiss       = { selectedProduct = null }
+            onAddWholesaler = { showAddWholesalerDialog = true },
+            onDismiss        = { selectedProduct = null }
         )
     }
 
-    // Select Buyer Dialog
-    if (showAddBuyerDialog && selectedProduct != null) {
-        SelectBuyerDialog(
-            buyers    = allBuyers,
-            onDismiss = { showAddBuyerDialog = false },
-            onSubmit  = { newBuyer ->
+    // ── Select Wholesaler Dialog ─────────────────────────
+    if (showAddWholesalerDialog && selectedProduct != null) {
+        SelectWholesalerDialog(
+            wholesalers = allWholesalers,
+            onDismiss   = { showAddWholesalerDialog = false },
+            onSubmit    = { newWholesaler ->
                 val code = selectedProduct!!.barcode
-                buyerListMap[code] = buyerListMap[code].orEmpty() + listOf(newBuyer)
-                buyerMap[code] = newBuyer
+                wholesalerListMap[code] = wholesalerListMap[code].orEmpty() + listOf(newWholesaler)
+                wholesalerMap[code] = newWholesaler
                 val init = (1..10).associate { i -> "price$i" to 0 }
-                productsRef.child(code).child("prices").child(newBuyer).setValue(init)
-                selectedProduct = selectedProduct!!.copy(prices = List(10) { 0 })
-                showAddBuyerDialog = false
+                productsRef.child(code).child("prices").child(newWholesaler).setValue(init)
+                products.indexOfFirst { it.barcode == code }.takeIf { it >= 0 }?.also { idx ->
+                    products[idx] = products[idx].copy(prices = List(10) { 0 })
+                    selectedProduct = products[idx]
+                }
+                showAddWholesalerDialog = false
+            }
+        )
+    }
+
+    // ── Override Price Dialog ────────────────────────────
+    editingIndex?.let { idx ->
+        AlertDialog(
+            onDismissRequest = { editingIndex = null },
+            title            = { Text("Override Price") },
+            text             = {
+                Column {
+                    Text("Enter new price for month #${idx + 1}")
+                    OutlinedTextField(
+                        value           = overrideInput,
+                        onValueChange   = { overrideInput = it.filter(Char::isDigit) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine      = true,
+                        modifier        = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton    = {
+                TextButton(onClick = {
+                    overrideInput.toIntOrNull()?.let { newVal ->
+                        val code = selectedProduct!!.barcode
+                        val wKey = wholesalerMap[code].orEmpty()
+                        productsRef.child(code)
+                            .child("prices").child(wKey)
+                            .child("price${idx + 1}")
+                            .setValue(newVal)
+                            .addOnSuccessListener {
+                                // update local state
+                                val prodIdx = products.indexOfFirst { it.barcode == code }
+                                if (prodIdx >= 0) {
+                                    val updated = products[prodIdx].copy(
+                                        prices = products[prodIdx].prices.toMutableList().apply { set(idx, newVal) }
+                                    )
+                                    products[prodIdx] = updated
+                                    selectedProduct = updated
+                                }
+                            }
+                    }
+                    editingIndex = null
+                }) { Text("Save") }
+            },
+            dismissButton    = {
+                TextButton(onClick = { editingIndex = null }) { Text("Cancel") }
             }
         )
     }
@@ -543,7 +482,8 @@ fun uploadImageForProduct(barcode: String, uri: Uri) {
             storageRef.downloadUrl
         }
         .addOnSuccessListener { url ->
-            FirebaseDatabase.getInstance().getReference("products")
+            FirebaseDatabase.getInstance()
+                .getReference("products")
                 .child(barcode)
                 .child("imageUrl")
                 .setValue(url.toString())
